@@ -1,0 +1,53 @@
+{
+  "name": "musiccollab",
+  "version": "1.0.0",
+  "description": "Plataforma SaaS de Edição Musical Colaborativa",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "cd server && npm run dev",
+    "client:dev": "cd client && npm start",
+    "build": "npm run client:build && npm run server:build",
+    "client:build": "cd client && npm run build",
+    "server:build": "cd server && npm run build",
+    "start": "cd server && npm start",
+    "test": "npm run client:test && npm run server:test",
+    "client:test": "cd client && npm test",
+    "server:test": "cd server && npm test",
+    "install:all": "npm run server:install && npm run client:install",
+    "server:install": "cd server && npm install",
+    "client:install": "cd client && npm install",
+    "db:migrate": "cd server && npm run db:migrate",
+    "db:seed": "cd server && npm run db:seed",
+    "db:studio": "cd server && npm run db:studio",
+    "lint": "npm run client:lint && npm run server:lint",
+    "client:lint": "cd client && npm run lint",
+    "server:lint": "cd server && npm run lint",
+    "format": "prettier --write \"**/*.{js,ts,tsx,json,md}\"",
+    "setup": "npm run install:all && echo Setup completo! Configure o .env e execute npm run db:migrate"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "prettier": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "music",
+    "collaboration",
+    "audio",
+    "realtime",
+    "saas",
+    "nodejs",
+    "react",
+    "socketio"
+  ],
+  "author": "Erick dos Santos Martins",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seu-usuario/musiccollab.git"
+  }
+}

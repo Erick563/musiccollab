@@ -1,0 +1,60 @@
+.timeline-ruler {
+  width: 100%;
+  height: 40px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin-bottom: 1rem;
+}
+
+.ruler-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 0 0.5rem;
+}
+
+.ruler-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 0.25rem;
+  transform: translateX(-50%);
+}
+
+.marker-line {
+  width: 2px;
+  height: 8px;
+  background: rgba(0, 212, 255, 0.6);
+  margin-bottom: 0.25rem;
+}
+
+.marker-label {
+  color: #00d4ff;
+  font-size: 0.7rem;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Highlight every major marker */
+.ruler-marker:nth-child(5n) .marker-line {
+  height: 12px;
+  width: 3px;
+  background: rgba(0, 212, 255, 0.9);
+}
+
+.ruler-marker:nth-child(5n) .marker-label {
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+
+

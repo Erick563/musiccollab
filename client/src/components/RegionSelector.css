@@ -1,0 +1,73 @@
+.region-selector {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  cursor: crosshair;
+  pointer-events: all;
+  z-index: 10; /* Aumentado para ficar acima do WaveformDisplay mas abaixo do drag handle */
+  background: transparent; /* Garante que está capturando eventos */
+}
+
+.selected-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 212, 255, 0.2);
+  border: 2px solid #00d4ff;
+  border-radius: 2px;
+  pointer-events: none;
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+  animation: region-pulse 2s ease-in-out infinite;
+}
+
+@keyframes region-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 212, 255, 0.6);
+  }
+}
+
+.region-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: #00d4ff;
+  cursor: ew-resize;
+  pointer-events: all;
+  transition: all 0.2s ease;
+}
+
+.region-handle:hover {
+  width: 12px;
+  background: #00eaff;
+  box-shadow: 0 0 10px #00d4ff;
+}
+
+.region-handle-start {
+  left: -4px;
+  border-radius: 4px 0 0 4px;
+}
+
+.region-handle-end {
+  right: -4px;
+  border-radius: 0 4px 4px 0;
+}
+
+.region-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+
+

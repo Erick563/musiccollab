@@ -1,0 +1,67 @@
+.waveform-display {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: none; /* Permite que os eventos passem para o RegionSelector */
+}
+
+.waveform-canvas {
+  width: 100%;
+  display: block;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+  filter: brightness(1.2) saturate(1.3);
+  pointer-events: none; /* Permite que os eventos passem para o RegionSelector */
+}
+
+.waveform-canvas:hover {
+  opacity: 0.8;
+}
+
+.waveform-canvas.playing {
+  animation: waveform-pulse 2s ease-in-out infinite;
+}
+
+@keyframes waveform-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.waveform-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 0.5rem;
+  color: #00d4ff;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(0, 212, 255, 0.3);
+  border-top-color: #00d4ff;
+  border-radius: 50%;
+  animation: spinner-rotate 1s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.waveform-loading span {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+

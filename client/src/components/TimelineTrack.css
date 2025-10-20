@@ -1,0 +1,474 @@
+.timeline-track {
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.timeline-track:hover {
+  border-color: rgba(0, 212, 255, 0.3);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.timeline-track.selected {
+  border-color: #00d4ff;
+  background: rgba(0, 212, 255, 0.1);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+}
+
+.timeline-track.muted {
+  opacity: 0.5;
+}
+
+.timeline-track.solo {
+  border-color: #ffd700;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+  background: rgba(255, 215, 0, 0.05);
+}
+
+.timeline-track.silenced-by-solo {
+  opacity: 0.4;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.timeline-track.dragging {
+  opacity: 0.7;
+  cursor: grabbing !important;
+}
+
+.timeline-track.dragging .track-waveform-container {
+  pointer-events: none;
+}
+
+/* Main track row */
+.track-main-row {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+}
+
+/* Track Controls Panel */
+.track-controls-panel {
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.4);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.75rem;
+  gap: 0.5rem;
+}
+
+.track-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.track-color-indicator {
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  box-shadow: 0 0 8px currentColor;
+  flex-shrink: 0;
+}
+
+.track-name-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.track-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.track-title {
+  color: #fff;
+  font-weight: 500;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.segment-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+  }
+  50% {
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.6);
+  }
+}
+
+/* Track Buttons */
+.track-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.track-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 32px;
+  height: 28px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.75rem;
+}
+
+.track-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.track-btn.solo-btn.active {
+  background: #ffd700;
+  color: #000;
+  font-weight: 700;
+  border-color: #ffd700;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  animation: soloGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes soloGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+  }
+}
+
+.track-btn.mute-btn.active {
+  background: rgba(255, 82, 82, 0.3);
+  border-color: #ff5252;
+  color: #ff5252;
+  box-shadow: 0 0 10px rgba(255, 82, 82, 0.4);
+}
+
+/* Volume and Pan Controls */
+.track-volume-control,
+.track-pan-control,
+.track-starttime-control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+
+.track-volume-control label,
+.track-pan-control label,
+.track-starttime-control label {
+  color: #00d4ff;
+  font-weight: bold;
+  width: 35px;
+  font-size: 0.7rem;
+}
+
+.volume-slider-mini,
+.pan-slider-mini {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.volume-slider-mini::-webkit-slider-thumb,
+.pan-slider-mini::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #00d4ff;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(0, 212, 255, 0.5);
+}
+
+.volume-slider-mini::-moz-range-thumb,
+.pan-slider-mini::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #00d4ff;
+  cursor: pointer;
+  border: none;
+}
+
+.volume-value-mini,
+.pan-value-mini,
+.time-unit {
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.7rem;
+  min-width: 24px;
+  text-align: right;
+}
+
+.starttime-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  color: #fff;
+  width: 60px;
+  text-align: center;
+  font-size: 0.7rem;
+}
+
+.starttime-input:focus {
+  outline: none;
+  border-color: #00d4ff;
+  background: rgba(0, 212, 255, 0.1);
+}
+
+/* Copy Region Button */
+.copy-region-btn {
+  background: rgba(102, 126, 234, 0.2);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  padding: 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.copy-region-btn:hover {
+  background: rgba(102, 126, 234, 0.4);
+  border-color: #667eea;
+  transform: scale(1.05);
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(102, 126, 234, 0.6);
+  }
+}
+
+/* Delete Button */
+.delete-track-btn {
+  background: rgba(255, 82, 82, 0.2);
+  border: 1px solid rgba(255, 82, 82, 0.3);
+  padding: 0.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.delete-track-btn:hover {
+  background: rgba(255, 82, 82, 0.4);
+  border-color: #ff5252;
+  transform: scale(1.05);
+}
+
+/* Waveform row container */
+.track-waveform-row {
+  display: flex;
+  flex: 1;
+  min-height: 100px;
+}
+
+/* Empty Space before track */
+.track-empty-space {
+  background: rgba(0, 0, 0, 0.2);
+  border-right: 2px dashed rgba(255, 255, 255, 0.3);
+  min-width: 0;
+  transition: width 0.3s ease;
+  flex-shrink: 0;
+}
+
+/* Waveform Container */
+.track-waveform-container {
+  position: relative;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.4);
+  cursor: crosshair;
+  min-width: 100px;
+  border-right: 2px solid rgba(0, 212, 255, 0.3);
+  transition: width 0.3s ease;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Drag Handle */
+.track-drag-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  background: rgba(0, 212, 255, 0.2);
+  border-right: 2px solid rgba(0, 212, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: #00d4ff;
+  cursor: grab;
+  z-index: 20; /* Mantém acima de tudo para poder arrastar */
+  transition: all 0.3s ease;
+  user-select: none;
+  pointer-events: all; /* Garante que captura eventos */
+}
+
+.track-drag-handle:hover {
+  background: rgba(0, 212, 255, 0.4);
+  width: 28px;
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+.track-drag-handle:active {
+  cursor: grabbing;
+  background: rgba(0, 212, 255, 0.6);
+}
+
+/* Track Duration Info Row */
+.track-duration-row {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+}
+
+/* Track Duration Info */
+.track-duration-info {
+  grid-column: 2;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 212, 255, 0.1);
+  border-top: 1px solid rgba(0, 212, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.duration-label {
+  color: #00d4ff;
+  font-size: 0.7rem;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+/* Playhead */
+.track-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ff4444;
+  box-shadow: 0 0 10px #ff4444;
+  pointer-events: none;
+  z-index: 10;
+  transition: left 0.1s linear;
+}
+
+.track-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid #ff4444;
+}
+
+/* Track Meter Row */
+.track-meter-row {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+}
+
+/* Track Level Meter */
+.track-level-meter {
+  grid-column: 1;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px currentColor;
+  position: relative;
+}
+
+.meter-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 100%);
+}
+
+/* Animations */
+@keyframes meter-pulse {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.timeline-track.selected .meter-fill {
+  animation: meter-pulse 1.5s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .timeline-track {
+    grid-template-columns: 200px 1fr;
+  }
+  
+  .track-controls-panel {
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .timeline-track {
+    grid-template-columns: 150px 1fr;
+  }
+  
+  .track-title {
+    font-size: 0.8rem;
+  }
+  
+  .track-btn {
+    width: 28px;
+    height: 24px;
+  }
+}
+

@@ -12,6 +12,8 @@ import { config, connectDatabase } from './config/database';
 import { logger } from './utils/logger';
 
 import authRoutes from './routes/auth';
+import projectRoutes from './routes/projects';
+import trackRoutes from './routes/tracks';
 
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
@@ -46,6 +48,8 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/tracks', trackRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

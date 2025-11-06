@@ -14,10 +14,10 @@ const ClipboardIndicator = ({ clipboardData, onClear }) => {
 
   return (
     <div className="clipboard-indicator">
-      <div className="clipboard-indicator-icon">📋</div>
+      <div className="clipboard-indicator-icon">{clipboardData.isCut ? '✂️' : '📋'}</div>
       <div className="clipboard-indicator-content">
         <div className="clipboard-indicator-title">
-          Região copiada
+          {clipboardData.isCut ? 'Região recortada' : 'Região copiada'}
         </div>
         <div className="clipboard-indicator-details">
           {clipboardData.trackName} ({formatTime(clipboardData.region.start)} - {formatTime(clipboardData.region.end)})

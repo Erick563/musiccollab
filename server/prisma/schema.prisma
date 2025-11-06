@@ -38,6 +38,7 @@ model Project {
   genre       String?
   isPublic    Boolean  @default(false)
   status      ProjectStatus @default(DRAFT)
+  state       Json?    // Estado completo do projeto (tracks, markers, BPM, etc.)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -74,6 +75,7 @@ model Track {
   fileSize    Int?
   duration    Int?     // em segundos
   mimeType    String?
+  audioData   Bytes?   // Dados binários do arquivo de áudio (armazenado no PostgreSQL como BYTEA)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

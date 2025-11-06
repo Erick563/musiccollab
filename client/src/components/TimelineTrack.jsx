@@ -26,16 +26,16 @@ const TimelineTrack = ({
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState(0);
 
-  // Get track duration - use track.duration for segments
+  // Get track duration - use track.duration if segments or has deleted regions
   useEffect(() => {
-    // For segments, use the predefined duration from the track object
-    if (track.isSegment && track.duration) {
-      console.log('📏 Segmento detectado - usando duration do track:', track.duration);
+    // For segments or tracks with deleted regions, use the predefined duration from the track object
+    if ((track.isSegment || track.deletedRegions?.length > 0) && track.duration) {
+      console.log('📏 Usando duration do track:', track.duration);
       setTrackDuration(track.duration);
       return;
     }
     
-    // For regular tracks, get duration from audio metadata
+    // For regular tracks without deletions, get duration from audio metadata
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -49,9 +49,39 @@ const TimelineTrack = ({
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
     };
-  }, [track.url, track.isSegment, track.duration]);
+  }, [track.url, track.isSegment, track.duration, track.deletedRegions]);
 
-  // Sync audio playback (considering startTime offset, trimEnd for segments, and Solo)
+  // Helper function to map timeline time to actual audio time (skipping deleted regions)
+  const mapTimelineToAudio = (timelineTime, deletedRegions, trimStart) => {
+    // Timeline time is the "visual" time after deletions
+    // We need to find the actual position in the original audio
+    
+    const sortedRegions = [...deletedRegions].sort((a, b) => a.start - b.start);
+    
+    let accumulatedTime = 0; // Time we've accumulated in the visual timeline
+    let audioPosition = trimStart; // Position in the actual audio
+    
+    for (const region of sortedRegions) {
+      // Distance from our current audio position to the start of this deleted region
+      const distanceToRegion = region.start - audioPosition;
+      
+      if (accumulatedTime + distanceToRegion >= timelineTime) {
+        // We're in the segment before this deleted region
+        const remaining = timelineTime - accumulatedTime;
+        return audioPosition + remaining;
+      }
+      
+      // Move past this non-deleted segment
+      accumulatedTime += distanceToRegion;
+      audioPosition = region.end; // Jump over the deleted region
+    }
+    
+    // We're after all deleted regions
+    const remaining = timelineTime - accumulatedTime;
+    return audioPosition + remaining;
+  };
+
+  // Sync audio playback (considering startTime offset, trimEnd for segments, Solo, and deleted regions)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -60,38 +90,38 @@ const TimelineTrack = ({
     const trackEndTime = trackStartTime + track.duration;
     const trimStart = track.trimStart || 0;
     const trimEnd = track.trimEnd || audio.duration;
+    const deletedRegions = track.deletedRegions || [];
 
     // Solo logic: 
     // - If ANY track is soloed, only play tracks that are soloed
     // - If NO tracks are soloed, play all tracks (except muted ones)
     const shouldPlay = hasSoloedTracks ? track.solo : !track.mute;
 
-    if (track.solo || track.mute || hasSoloedTracks) {
-      console.log('🎚️ Solo/Mute check:', track.name);
-      console.log('   hasSoloedTracks:', hasSoloedTracks);
-      console.log('   track.solo:', track.solo);
-      console.log('   track.mute:', track.mute);
-      console.log('   shouldPlay:', shouldPlay);
-    }
-
     if (isPlaying && shouldPlay) {
-      // Calculate where we are in the original audio
+      // Calculate where we are relative to track start (in timeline/visual time)
       const relativeTime = currentTime - trackStartTime;
-      const actualAudioTime = trimStart + relativeTime;
       
-      // Only play if current time is within track's time range AND within trim range
+      // Map timeline time to actual audio time (skipping deleted regions)
+      const actualAudioTime = mapTimelineToAudio(relativeTime, deletedRegions, trimStart);
+      
+      // Debug logs for tracks with deleted regions
+      if (deletedRegions.length > 0 && Math.random() < 0.05) { // Log 5% of the time to avoid spam
+        console.log('🎵 Playback mapping:', track.name);
+        console.log('   Timeline time (visual):', relativeTime.toFixed(2), 's');
+        console.log('   Audio time (actual):', actualAudioTime.toFixed(2), 's');
+        console.log('   Deleted regions:', deletedRegions);
+      }
+      
+      // Only play if current time is within track's time range and within trim range
       if (currentTime >= trackStartTime && currentTime < trackEndTime && actualAudioTime < trimEnd) {
         audio.play().catch(err => console.error('Playback error:', err));
       } else {
         audio.pause();
-        if (track.isSegment && actualAudioTime >= trimEnd) {
-          console.log('🛑 Pausando segmento - trimEnd alcançado');
-        }
       }
     } else {
       audio.pause();
     }
-  }, [isPlaying, track.mute, track.solo, hasSoloedTracks, currentTime, track.duration, track.startTime, track.trimStart, track.trimEnd, track.isSegment, track.name]);
+  }, [isPlaying, track.mute, track.solo, hasSoloedTracks, currentTime, track.duration, track.startTime, track.trimStart, track.trimEnd, track.deletedRegions, track.isSegment, track.name]);
 
   // Sync audio volume (considering Solo)
   useEffect(() => {
@@ -104,50 +134,33 @@ const TimelineTrack = ({
     audio.volume = shouldBeMuted ? 0 : (track.volume / 100);
   }, [track.volume, track.mute, track.solo, hasSoloedTracks]);
 
-  // Sync audio time (considering startTime offset and trimStart/trimEnd for segments)
+  // Sync audio time (considering startTime offset, trimStart/trimEnd for segments, and deleted regions)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !trackDuration) return;
     
     const trackStartTime = track.startTime || 0;
-    const trackEndTime = trackStartTime + track.duration; // Use track.duration instead of trackDuration
-    const trimStart = track.trimStart || 0; // For segments: where to start in original audio
-    const trimEnd = track.trimEnd || audio.duration; // For segments: where to end in original audio
+    const trackEndTime = trackStartTime + track.duration;
+    const trimStart = track.trimStart || 0;
+    const trimEnd = track.trimEnd || audio.duration;
+    const deletedRegions = track.deletedRegions || [];
     
-    // Log for segments
-    if (track.isSegment) {
-      console.log('🎵 Segmento:', track.name);
-      console.log('   trimStart:', trimStart, 'trimEnd:', trimEnd, 'duration:', track.duration);
-      console.log('   currentTime:', currentTime, 'trackStartTime:', trackStartTime, 'trackEndTime:', trackEndTime);
-      console.log('   audio.currentTime:', audio.currentTime);
-    }
-    
-    // Calculate audio position relative to track start
+    // Calculate audio position relative to track start (timeline time)
     const relativeTime = currentTime - trackStartTime;
     
     if (currentTime >= trackStartTime && currentTime < trackEndTime) {
-      // For segments, map the relative time to the trimmed portion
-      const actualAudioTime = trimStart + relativeTime;
-      
-      if (track.isSegment) {
-        console.log('   → Tocando segmento em:', actualAudioTime, '(relativeTime:', relativeTime, ')');
-      }
+      // Map timeline time to actual audio time (skipping deleted regions)
+      const actualAudioTime = mapTimelineToAudio(relativeTime, deletedRegions, trimStart);
       
       // Only sync if within track time range and respect trimEnd
       if (actualAudioTime <= trimEnd) {
         if (Math.abs(audio.currentTime - actualAudioTime) > 0.5) {
           audio.currentTime = Math.max(trimStart, Math.min(actualAudioTime, trimEnd));
-          if (track.isSegment) {
-            console.log('   → Ajustando audio.currentTime para:', audio.currentTime);
-          }
         }
       } else {
-        // Reached the end of the segment
+        // Reached the end
         audio.pause();
         audio.currentTime = trimEnd;
-        if (track.isSegment) {
-          console.log('   → Fim do segmento alcançado!');
-        }
       }
     } else if (currentTime >= trackEndTime) {
       // Pause if playhead passed the track end
@@ -158,7 +171,7 @@ const TimelineTrack = ({
       audio.pause();
       audio.currentTime = trimStart;
     }
-  }, [currentTime, track.duration, track.startTime, track.trimStart, track.trimEnd, track.isSegment, track.name]);
+  }, [currentTime, track.duration, track.startTime, track.trimStart, track.trimEnd, track.deletedRegions, track.name, trackDuration]);
 
   const handleVolumeChange = (e) => {
     onUpdate(track.id, { volume: parseInt(e.target.value) });
@@ -409,8 +422,9 @@ const TimelineTrack = ({
           color={track.color}
           height={80}
           isPlaying={isPlaying && !track.mute && currentTime < trackDuration}
-          trimStart={track.isSegment ? track.trimStart : null}
-          trimEnd={track.isSegment ? track.trimEnd : null}
+          trimStart={track.trimStart || 0}
+          trimEnd={track.trimEnd || track.duration}
+          deletedRegions={track.deletedRegions}
         />
         
         {/* Region Selector */}

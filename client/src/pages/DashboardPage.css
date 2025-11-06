@@ -120,6 +120,11 @@
   color: white;
 }
 
+.stat-card.current-project:hover {
+  cursor: pointer;
+  transform: translateY(-5px) scale(1.02);
+}
+
 .stat-icon {
   font-size: 2.5rem;
   opacity: 0.8;
@@ -167,6 +172,7 @@
 .popular-project-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
 }
 
 .popularity-rank {
@@ -300,6 +306,7 @@
 .project-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
 }
 
 .project-header {

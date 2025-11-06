@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { projectService } from '../services/projectService';
 import './DashboardPage.css';
 
 const DashboardPage = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
-  const [tracks, setTracks] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalProjects: 0,
     totalTracks: 0,
@@ -16,81 +17,75 @@ const DashboardPage = () => {
     popularProjects: []
   });
 
-  // Mock data - em produção, estes dados viriam de uma API
+  // Carregar projetos da API
   useEffect(() => {
-    // Simular carregamento de dados
-    const mockProjects = [
-      {
-        id: 1,
-        name: 'Projeto Eletrônico',
-        duration: '4:32',
-        lastUpdated: '2024-10-01T10:30:00Z',
-        tracks: 8,
-        collaborators: 3,
-        isPublic: true,
-        popularity: 95
-      },
-      {
-        id: 2,
-        name: 'Rock Alternativo',
-        duration: '3:45',
-        lastUpdated: '2024-09-28T15:20:00Z',
-        tracks: 12,
-        collaborators: 2,
-        isPublic: false,
-        popularity: 87
-      },
-      {
-        id: 3,
-        name: 'Ambient Chill',
-        duration: '6:18',
-        lastUpdated: '2024-09-25T09:15:00Z',
-        tracks: 6,
-        collaborators: 1,
-        isPublic: true,
-        popularity: 92
-      },
-      {
-        id: 4,
-        name: 'Hip Hop Beat',
-        duration: '2:58',
-        lastUpdated: '2024-09-30T14:45:00Z',
-        tracks: 10,
-        collaborators: 4,
-        isPublic: true,
-        popularity: 98
+    const loadProjects = async () => {
+      try {
+        setIsLoading(true);
+        const projectsData = await projectService.getProjects();
+        
+        // Formatar projetos
+        const formattedProjects = projectsData.map(project => ({
+          id: project.id,
+          name: project.title,
+          duration: formatDuration(project.duration || 0),
+          lastUpdated: project.updatedAt,
+          tracks: project.tracksCount || 0,
+          collaborators: project.collaboratorsCount || 0,
+          isPublic: project.isPublic,
+          status: project.status
+        }));
+
+        setProjects(formattedProjects);
+        
+        if (formattedProjects.length > 0) {
+          setCurrentProject(formattedProjects[0]);
+        }
+
+        // Calcular estatísticas
+        const longestProject = formattedProjects.reduce((prev, current) => {
+          const prevDur = parseDuration(prev.duration);
+          const currDur = parseDuration(current.duration);
+          return prevDur > currDur ? prev : current;
+        }, formattedProjects[0] || null);
+
+        // Ordenar por última atualização (mais recentes primeiro)
+        const popularProjects = [...formattedProjects]
+          .sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated))
+          .slice(0, 3);
+
+        // Contar total de tracks de todos os projetos
+        const totalTracks = formattedProjects.reduce((sum, p) => sum + p.tracks, 0);
+
+        setStats({
+          totalProjects: formattedProjects.length,
+          totalTracks: totalTracks,
+          longestProject,
+          popularProjects
+        });
+      } catch (error) {
+        console.error('Erro ao carregar projetos:', error);
+      } finally {
+        setIsLoading(false);
       }
-    ];
+    };
 
-    const mockTracks = [
-      { id: 1, name: 'Bass Line', projectId: 1, duration: '4:32', type: 'bass' },
-      { id: 2, name: 'Lead Synth', projectId: 1, duration: '4:32', type: 'synth' },
-      { id: 3, name: 'Drums', projectId: 2, duration: '3:45', type: 'drums' },
-      { id: 4, name: 'Guitar', projectId: 2, duration: '3:45', type: 'guitar' },
-      { id: 5, name: 'Ambient Pad', projectId: 3, duration: '6:18', type: 'pad' },
-      { id: 6, name: 'Beat', projectId: 4, duration: '2:58', type: 'drums' }
-    ];
-
-    setProjects(mockProjects);
-    setTracks(mockTracks);
-    setCurrentProject(mockProjects[0]);
-
-    // Calcular estatísticas
-    const longestProject = mockProjects.reduce((prev, current) => 
-      (prev.duration > current.duration) ? prev : current
-    );
-
-    const popularProjects = mockProjects
-      .sort((a, b) => b.popularity - a.popularity)
-      .slice(0, 3);
-
-    setStats({
-      totalProjects: mockProjects.length,
-      totalTracks: mockTracks.length,
-      longestProject,
-      popularProjects
-    });
+    loadProjects();
   }, []);
+
+  const formatDuration = (seconds) => {
+    if (!seconds || seconds === 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const parseDuration = (durationStr) => {
+    if (!durationStr) return 0;
+    const parts = durationStr.split(':');
+    if (parts.length !== 2) return 0;
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -108,11 +103,11 @@ const DashboardPage = () => {
       navigator.share({
         title: `Projeto: ${project.name}`,
         text: `Confira meu projeto musical "${project.name}" no MusicCollab!`,
-        url: `${window.location.origin}/project/${project.id}`
+        url: `${window.location.origin}/studio/${project.id}`
       });
     } else {
       // Fallback para navegadores que não suportam Web Share API
-      const url = `${window.location.origin}/project/${project.id}`;
+      const url = `${window.location.origin}/studio/${project.id}`;
       navigator.clipboard.writeText(url);
       alert('Link copiado para a área de transferência!');
     }
@@ -182,7 +177,12 @@ const DashboardPage = () => {
                   <p>Projeto Mais Longo</p>
                 </div>
               </div>
-              <div className="stat-card current-project">
+              <div 
+                className="stat-card current-project" 
+                onClick={() => currentProject && navigate(`/studio/${currentProject.id}`)}
+                style={{ cursor: currentProject ? 'pointer' : 'default' }}
+                title={currentProject ? 'Clique para abrir o projeto' : ''}
+              >
                 <div className="stat-icon">🎯</div>
                 <div className="stat-content">
                   <h3>{currentProject?.name || 'Nenhum'}</h3>
@@ -192,28 +192,36 @@ const DashboardPage = () => {
             </div>
           </section>
 
-          {/* Projetos Mais Famosos */}
-          <section className="popular-projects-section">
-            <h3>Projetos Mais Famosos</h3>
-            <div className="popular-projects-grid">
-              {stats.popularProjects.map((project, index) => (
-                <div key={project.id} className="popular-project-card">
-                  <div className="popularity-rank">#{index + 1}</div>
-                  <div className="project-info">
-                    <h4>{project.name}</h4>
-                    <p>{project.popularity}% de popularidade</p>
-                    <p>{project.collaborators} colaboradores</p>
+          {/* Projetos Recentes */}
+          {stats.popularProjects.length > 0 && (
+            <section className="popular-projects-section">
+              <h3>Projetos Recentes</h3>
+              <div className="popular-projects-grid">
+                {stats.popularProjects.map((project, index) => (
+                  <div 
+                    key={project.id} 
+                    className="popular-project-card"
+                    onClick={() => navigate(`/studio/${project.id}`)}
+                    style={{ cursor: 'pointer' }}
+                    title="Clique para abrir o projeto"
+                  >
+                    <div className="popularity-rank">#{index + 1}</div>
+                    <div className="project-info">
+                      <h4>{project.name}</h4>
+                      <p>{formatDate(project.lastUpdated)}</p>
+                      <p>{project.collaborators} colaborador{project.collaborators !== 1 ? 'es' : ''}</p>
+                    </div>
+                    <div className="popularity-bar">
+                      <div 
+                        className="popularity-fill" 
+                        style={{ width: `${100 - (index * 10)}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="popularity-bar">
-                    <div 
-                      className="popularity-fill" 
-                      style={{ width: `${project.popularity}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Lista de Projetos */}
           <section className="projects-section">
@@ -225,9 +233,36 @@ const DashboardPage = () => {
               </button>
             </div>
             
-            <div className="projects-grid">
-              {projects.map(project => (
-                <div key={project.id} className="project-card">
+            {isLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '48px' }}>⏳</div>
+                <p>Carregando projetos...</p>
+              </div>
+            ) : projects.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ fontSize: '48px' }}>🎵</div>
+                <h3>Nenhum projeto ainda</h3>
+                <p>Crie seu primeiro projeto para começar!</p>
+                <button className="btn btn-primary" onClick={() => navigate('/studio')} style={{ marginTop: '20px' }}>
+                  <span className="btn-icon">➕</span>
+                  Criar Primeiro Projeto
+                </button>
+              </div>
+            ) : (
+              <div className="projects-grid">
+                {projects.map(project => (
+                <div 
+                  key={project.id} 
+                  className="project-card"
+                  onClick={(e) => {
+                    // Não navegar se o clique foi em um botão ou dentro de project-actions
+                    if (!e.target.closest('.project-actions') && !e.target.closest('button')) {
+                      navigate(`/studio/${project.id}`);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                  title="Clique para abrir o projeto"
+                >
                   <div className="project-header">
                     <h4>{project.name}</h4>
                     <div className="project-status">
@@ -259,7 +294,7 @@ const DashboardPage = () => {
                     </div>
                   </div>
 
-                  <div className="project-actions">
+                  <div className="project-actions" onClick={(e) => e.stopPropagation()}>
                     <div className="action-buttons-group">
                       <button 
                         className="action-btn"
@@ -283,45 +318,17 @@ const DashboardPage = () => {
                         ⬇️
                       </button>
                     </div>
-                    <button className="btn btn-outline btn-small" onClick={() => navigate('/studio')}>
+                    <button 
+                      className="btn btn-outline btn-small" 
+                      onClick={() => navigate(`/studio/${project.id}`)}
+                    >
                       Abrir
                     </button>
                   </div>
                 </div>
               ))}
-            </div>
-          </section>
-
-          {/* Lista de Faixas */}
-          <section className="tracks-section">
-            <h3>Minhas Faixas</h3>
-            <div className="tracks-list">
-              {tracks.map(track => {
-                const project = projects.find(p => p.id === track.projectId);
-                return (
-                  <div key={track.id} className="track-item">
-                    <div className="track-icon">
-                      {track.type === 'drums' && '🥁'}
-                      {track.type === 'bass' && '🎸'}
-                      {track.type === 'synth' && '🎹'}
-                      {track.type === 'guitar' && '🎸'}
-                      {track.type === 'pad' && '🎵'}
-                    </div>
-                    <div className="track-info">
-                      <h4>{track.name}</h4>
-                      <p>Projeto: {project?.name}</p>
-                    </div>
-                    <div className="track-duration">
-                      {track.duration}
-                    </div>
-                    <div className="track-actions">
-                      <button className="action-btn" title="Reproduzir">▶️</button>
-                      <button className="action-btn" title="Baixar">⬇️</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+              </div>
+            )}
           </section>
         </div>
       </main>

@@ -38,7 +38,7 @@ model Project {
   genre       String?
   isPublic    Boolean  @default(false)
   status      ProjectStatus @default(DRAFT)
-  state       Json?    // Estado completo do projeto (tracks, markers, BPM, etc.)
+  state       Json?    // Estado completo do projeto (tracks, masterVolume, zoom, etc.)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -28,7 +28,6 @@ export interface IUserPublic {
 export class User {
 
   static async create(userData: IUserCreate): Promise<IUser> {
-    // Verificar se o email já existe
     const existingUser = await prisma.user.findUnique({
       where: { email: userData.email }
     });
@@ -40,7 +39,6 @@ export class User {
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
-    // Gerar username único baseado no email
     const username = userData.email.split('@')[0] + '_' + Date.now();
 
     const newUser = await prisma.user.create({
@@ -110,7 +108,6 @@ export class User {
   }
 
   static async updateProfile(id: string, updateData: Partial<IUserCreate>): Promise<IUser | null> {
-    // Verificar se o usuário existe
     const existingUser = await prisma.user.findUnique({
       where: { id }
     });
@@ -119,7 +116,6 @@ export class User {
       return null;
     }
 
-    // Preparar dados para atualização
     const dataToUpdate: any = {};
     
     if (updateData.name) {
@@ -127,7 +123,6 @@ export class User {
     }
     
     if (updateData.email) {
-      // Verificar se o novo email já está em uso por outro usuário
       const emailExists = await prisma.user.findFirst({
         where: {
           email: updateData.email,

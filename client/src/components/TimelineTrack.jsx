@@ -26,22 +26,16 @@ const TimelineTrack = ({
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState(0);
 
-  // Get track duration - use track.duration if segments or has deleted regions
   useEffect(() => {
-    // For segments or tracks with deleted regions, use the predefined duration from the track object
     if ((track.isSegment || track.deletedRegions?.length > 0) && track.duration) {
-      console.log('📏 Usando duration do track:', track.duration);
       setTrackDuration(track.duration);
       return;
     }
-    
-    // For regular tracks without deletions, get duration from audio metadata
     const audio = audioRef.current;
     if (!audio) return;
 
     const handleLoadedMetadata = () => {
       setTrackDuration(audio.duration);
-      console.log('📏 Track regular - duration do áudio:', audio.duration);
     };
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -51,37 +45,28 @@ const TimelineTrack = ({
     };
   }, [track.url, track.isSegment, track.duration, track.deletedRegions]);
 
-  // Helper function to map timeline time to actual audio time (skipping deleted regions)
   const mapTimelineToAudio = (timelineTime, deletedRegions, trimStart) => {
-    // Timeline time is the "visual" time after deletions
-    // We need to find the actual position in the original audio
-    
     const sortedRegions = [...deletedRegions].sort((a, b) => a.start - b.start);
     
-    let accumulatedTime = 0; // Time we've accumulated in the visual timeline
-    let audioPosition = trimStart; // Position in the actual audio
+    let accumulatedTime = 0;
+    let audioPosition = trimStart;
     
     for (const region of sortedRegions) {
-      // Distance from our current audio position to the start of this deleted region
       const distanceToRegion = region.start - audioPosition;
       
       if (accumulatedTime + distanceToRegion >= timelineTime) {
-        // We're in the segment before this deleted region
         const remaining = timelineTime - accumulatedTime;
         return audioPosition + remaining;
       }
       
-      // Move past this non-deleted segment
       accumulatedTime += distanceToRegion;
-      audioPosition = region.end; // Jump over the deleted region
+      audioPosition = region.end;
     }
     
-    // We're after all deleted regions
     const remaining = timelineTime - accumulatedTime;
     return audioPosition + remaining;
   };
 
-  // Sync audio playback (considering startTime offset, trimEnd for segments, Solo, and deleted regions)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -92,29 +77,14 @@ const TimelineTrack = ({
     const trimEnd = track.trimEnd || audio.duration;
     const deletedRegions = track.deletedRegions || [];
 
-    // Solo logic: 
-    // - If ANY track is soloed, only play tracks that are soloed
-    // - If NO tracks are soloed, play all tracks (except muted ones)
     const shouldPlay = hasSoloedTracks ? track.solo : !track.mute;
 
     if (isPlaying && shouldPlay) {
-      // Calculate where we are relative to track start (in timeline/visual time)
       const relativeTime = currentTime - trackStartTime;
-      
-      // Map timeline time to actual audio time (skipping deleted regions)
       const actualAudioTime = mapTimelineToAudio(relativeTime, deletedRegions, trimStart);
       
-      // Debug logs for tracks with deleted regions
-      if (deletedRegions.length > 0 && Math.random() < 0.05) { // Log 5% of the time to avoid spam
-        console.log('🎵 Playback mapping:', track.name);
-        console.log('   Timeline time (visual):', relativeTime.toFixed(2), 's');
-        console.log('   Audio time (actual):', actualAudioTime.toFixed(2), 's');
-        console.log('   Deleted regions:', deletedRegions);
-      }
-      
-      // Only play if current time is within track's time range and within trim range
       if (currentTime >= trackStartTime && currentTime < trackEndTime && actualAudioTime < trimEnd) {
-        audio.play().catch(err => console.error('Playback error:', err));
+        audio.play().catch(() => {});
       } else {
         audio.pause();
       }
@@ -123,18 +93,15 @@ const TimelineTrack = ({
     }
   }, [isPlaying, track.mute, track.solo, hasSoloedTracks, currentTime, track.duration, track.startTime, track.trimStart, track.trimEnd, track.deletedRegions, track.isSegment, track.name]);
 
-  // Sync audio volume (considering Solo)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     
-    // If there are soloed tracks and this track is NOT soloed, mute it
     const shouldBeMuted = track.mute || (hasSoloedTracks && !track.solo);
     
     audio.volume = shouldBeMuted ? 0 : (track.volume / 100);
   }, [track.volume, track.mute, track.solo, hasSoloedTracks]);
 
-  // Sync audio time (considering startTime offset, trimStart/trimEnd for segments, and deleted regions)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !trackDuration) return;
@@ -145,29 +112,23 @@ const TimelineTrack = ({
     const trimEnd = track.trimEnd || audio.duration;
     const deletedRegions = track.deletedRegions || [];
     
-    // Calculate audio position relative to track start (timeline time)
     const relativeTime = currentTime - trackStartTime;
     
     if (currentTime >= trackStartTime && currentTime < trackEndTime) {
-      // Map timeline time to actual audio time (skipping deleted regions)
       const actualAudioTime = mapTimelineToAudio(relativeTime, deletedRegions, trimStart);
       
-      // Only sync if within track time range and respect trimEnd
       if (actualAudioTime <= trimEnd) {
         if (Math.abs(audio.currentTime - actualAudioTime) > 0.5) {
           audio.currentTime = Math.max(trimStart, Math.min(actualAudioTime, trimEnd));
         }
       } else {
-        // Reached the end
         audio.pause();
         audio.currentTime = trimEnd;
       }
     } else if (currentTime >= trackEndTime) {
-      // Pause if playhead passed the track end
       audio.pause();
       audio.currentTime = trimEnd;
     } else {
-      // Before track starts
       audio.pause();
       audio.currentTime = trimStart;
     }
@@ -189,43 +150,23 @@ const TimelineTrack = ({
     onUpdate(track.id, { solo: !track.solo });
   };
 
-  // Removido handleWaveformClick - deixar RegionSelector controlar os eventos de mouse
-
   const handleRegionSelect = (region) => {
-    console.log('=== REGIÃO SELECIONADA ===');
-    console.log('Track ID:', track.id);
-    console.log('Track Name:', track.name);
-    console.log('Region:', region);
-    
     setSelectedRegion(region);
-    // Update track with selected region so StudioPage can access it
     onUpdate(track.id, { selectedRegion: region });
   };
 
-  // Handle seek from RegionSelector click
   const handleRegionSeek = (timeInTrack) => {
     const trackStartTime = track.startTime || 0;
     const absoluteTime = trackStartTime + timeInTrack;
     const absolutePercentage = absoluteTime / maxDuration;
     
-    console.log('🎯 Seek do RegionSelector:');
-    console.log('   timeInTrack:', timeInTrack);
-    console.log('   trackStartTime:', trackStartTime);
-    console.log('   absoluteTime:', absoluteTime);
-    console.log('   absolutePercentage:', absolutePercentage);
-    
     onSeek(absolutePercentage);
   };
 
-  // handleCopyRegion removed - now only via Ctrl+C keyboard shortcut
-
   const handleUpdateEffects = (trackId, effects) => {
     onUpdate(trackId, { effects });
-    console.log('Effects updated:', effects);
-    // Aqui você implementaria a aplicação real dos efeitos usando Web Audio API
   };
 
-  // Handle track position dragging - APENAS no drag handle
   const handleDragHandleMouseDown = (e) => {
     e.stopPropagation();
     setIsDragging(true);
@@ -267,7 +208,6 @@ const TimelineTrack = ({
 
   const trackStartTime = track.startTime || 0;
 
-  // Check if track is silenced by solo
   const isSilencedBySolo = hasSoloedTracks && !track.solo;
 
   return (
@@ -276,16 +216,13 @@ const TimelineTrack = ({
       className={`timeline-track ${isSelected ? 'selected' : ''} ${track.mute ? 'muted' : ''} ${track.solo ? 'solo' : ''} ${isSilencedBySolo ? 'silenced-by-solo' : ''} ${isDragging ? 'dragging' : ''}`}
       onClick={() => onSelect(track)}
     >
-      {/* Hidden audio element for playback */}
       <audio 
         ref={audioRef}
         src={track.url}
         preload="metadata"
       />
 
-      {/* Main Row: Controls + Waveform */}
       <div className="track-main-row">
-        {/* Track Controls */}
         <div className="track-controls-panel">
         <div className="track-header">
           <div 
@@ -386,9 +323,7 @@ const TimelineTrack = ({
         </button>
         </div>
 
-        {/* Waveform Row */}
         <div className="track-waveform-row">
-          {/* Empty space before track starts */}
           {trackStartTime > 0 && (
             <div 
               className="track-empty-space"
@@ -400,7 +335,6 @@ const TimelineTrack = ({
             />
           )}
 
-          {/* Waveform Display */}
           <div 
             className="track-waveform-container"
             style={{ 
@@ -409,7 +343,6 @@ const TimelineTrack = ({
                 : '100%' 
             }}
           >
-        {/* Drag Handle */}
         <div 
           className="track-drag-handle" 
           title="Arraste para mover a faixa no tempo"
@@ -427,7 +360,6 @@ const TimelineTrack = ({
           deletedRegions={track.deletedRegions}
         />
         
-        {/* Region Selector */}
         <RegionSelector 
           duration={trackDuration}
           onRegionSelect={handleRegionSelect}
@@ -435,7 +367,6 @@ const TimelineTrack = ({
           onSeek={handleRegionSeek}
         />
         
-        {/* Playhead */}
         {maxDuration > 0 && trackDuration > 0 && currentTime >= trackStartTime && currentTime <= (trackStartTime + trackDuration) && (
           <div 
             className="track-playhead"
@@ -446,7 +377,6 @@ const TimelineTrack = ({
         </div>
       </div>
 
-      {/* Duration Info Row */}
       {trackDuration > 0 && (
         <div className="track-duration-row">
           <div></div>
@@ -460,7 +390,6 @@ const TimelineTrack = ({
         </div>
       )}
 
-      {/* Track Meter Row */}
       <div className="track-meter-row">
         <div className="track-level-meter">
           <div 

@@ -8,7 +8,6 @@ import StudioPage from './pages/StudioPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
-// Componente para redirecionar de /project/:id para /studio/:id
 const ProjectRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/studio/${id}`} replace />;
@@ -38,7 +37,6 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            {/* Redirecionamento para compatibilidade com links compartilhados */}
             <Route 
               path="/project/:id" 
               element={<ProjectRedirect />} 

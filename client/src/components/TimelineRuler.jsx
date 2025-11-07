@@ -8,19 +8,17 @@ const TimelineRuler = ({ duration }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Generate time markers based on duration
   const getTimeMarkers = () => {
     if (duration === 0) return [];
     
     const markers = [];
-    let interval = 10; // Default 10 seconds
+    let interval = 10;
     
-    // Adjust interval based on duration
-    if (duration > 300) interval = 60; // 1 minute for long tracks
-    else if (duration > 120) interval = 30; // 30 seconds
-    else if (duration > 60) interval = 15; // 15 seconds
-    else if (duration > 30) interval = 10; // 10 seconds
-    else interval = 5; // 5 seconds for short tracks
+    if (duration > 300) interval = 60;
+    else if (duration > 120) interval = 30;
+    else if (duration > 60) interval = 15;
+    else if (duration > 30) interval = 10;
+    else interval = 5;
     
     for (let time = 0; time <= duration; time += interval) {
       markers.push({
@@ -29,7 +27,6 @@ const TimelineRuler = ({ duration }) => {
       });
     }
     
-    // Add final marker if not already there
     if (markers[markers.length - 1].time < duration) {
       markers.push({
         time: duration,

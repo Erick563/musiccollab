@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
-// Configurar axios com token padrão
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -10,7 +9,6 @@ const api = axios.create({
   },
 });
 
-// Interceptor para adicionar token automaticamente
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -19,7 +17,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor para tratar erros de autenticação
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -33,7 +30,6 @@ api.interceptors.response.use(
 );
 
 export const trackService = {
-  // Criar track com upload de áudio
   async createTrack(projectId, file, trackData = {}) {
     const formData = new FormData();
     formData.append('audio', file);
@@ -53,19 +49,16 @@ export const trackService = {
     return response.data.track;
   },
 
-  // Obter track por ID
   async getTrack(id) {
     const response = await api.get(`/tracks/${id}`);
     return response.data.track;
   },
 
-  // Obter áudio da track (retorna como data URL)
   async getTrackAudio(id) {
     const response = await api.get(`/tracks/${id}/audio`);
     return response.data.audioUrl;
   },
 
-  // Download do arquivo de áudio
   async downloadTrackAudio(id) {
     const response = await api.get(`/tracks/${id}/download`, {
       responseType: 'blob',
@@ -73,19 +66,16 @@ export const trackService = {
     return response.data;
   },
 
-  // Listar tracks de um projeto
   async getProjectTracks(projectId) {
     const response = await api.get(`/tracks/project/${projectId}`);
     return response.data.tracks;
   },
 
-  // Atualizar track
   async updateTrack(id, trackData) {
     const response = await api.put(`/tracks/${id}`, trackData);
     return response.data.track;
   },
 
-  // Deletar track
   async deleteTrack(id) {
     const response = await api.delete(`/tracks/${id}`);
     return response.data;

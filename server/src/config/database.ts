@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 
-// Configuração do banco de dados
 export const config = {
   database: {
     url: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/musiccollab',
@@ -26,24 +25,18 @@ export const config = {
   }
 };
 
-// Instância do Prisma Client
 export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
 });
 
-// Função para conectar ao banco
 export const connectDatabase = async () => {
   try {
     await prisma.$connect();
-    console.log('Conectado ao banco de dados PostgreSQL');
   } catch (error) {
-    console.error('Erro ao conectar ao banco de dados:', error);
     process.exit(1);
   }
 };
 
-// Função para desconectar do banco
 export const disconnectDatabase = async () => {
   await prisma.$disconnect();
-  console.log('📡 Desconectado do banco de dados');
 };

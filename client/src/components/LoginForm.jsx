@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './AuthForms.css';
 
 const LoginForm = ({ onToggleMode }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -81,6 +83,13 @@ const LoginForm = ({ onToggleMode }) => {
         </form>
 
         <div className="auth-footer">
+          <button 
+            type="button" 
+            className="back-home-button"
+            onClick={() => navigate('/')}
+          >
+            ← Voltar à Home
+          </button>
           <p>
             Não tem uma conta?{' '}
             <button 

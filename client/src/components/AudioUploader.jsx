@@ -55,7 +55,6 @@ const AudioUploader = ({ onFileUpload }) => {
       onFileUpload(file);
     });
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

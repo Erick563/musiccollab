@@ -18,11 +18,7 @@ const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) =>
   }, [selectedRegion]);
 
   const handleMouseDown = (e) => {
-    console.log('🖱️ RegionSelector - MouseDown evento capturado!');
-    
-    // Se clicar com Shift, limpa a seleção
     if (e.shiftKey) {
-      console.log('🧹 Shift+Click - Limpando seleção');
       setDragStart(null);
       setDragEnd(null);
       return;
@@ -35,9 +31,6 @@ const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) =>
     const percentage = x / rect.width;
     const time = percentage * duration;
     
-    console.log('🖱️ MouseDown em:', time, 'segundos');
-    
-    // Store initial position
     mouseDownPositionRef.current = { x: e.clientX, time };
     setHasMoved(false);
     setIsDragging(true);
@@ -45,20 +38,14 @@ const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) =>
     setDragEnd(time);
   };
 
-  // Event listeners are now handled directly in the useEffect below
-  
   useEffect(() => {
     if (isDragging) {
-      console.log('📌 Adicionando event listeners globais');
-      
       const moveHandler = (e) => {
         if (!containerRef.current || !mouseDownPositionRef.current) return;
         
-        // Check if mouse moved more than 5 pixels (to differentiate click from drag)
         const deltaX = Math.abs(e.clientX - mouseDownPositionRef.current.x);
         
         if (deltaX > 5 && !hasMoved) {
-          console.log('🏃 Movimento detectado - iniciando arrasto');
           setHasMoved(true);
         }
         
@@ -73,7 +60,6 @@ const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) =>
       };
       
       const upHandler = () => {
-        console.log('🖱️ RegionSelector - MouseUp (global)');
         setIsDragging(false);
       };
       
@@ -81,52 +67,36 @@ const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) =>
       document.addEventListener('mouseup', upHandler);
       
       return () => {
-        console.log('📌 Removendo event listeners globais');
         document.removeEventListener('mousemove', moveHandler);
         document.removeEventListener('mouseup', upHandler);
       };
     }
   }, [isDragging, duration, hasMoved]);
 
-  // Handle when dragging stops - only runs once when drag ends
   useEffect(() => {
-    // Only trigger when isDragging changes from true to false
     if (prevIsDraggingRef.current === true && isDragging === false) {
-      console.log('🎯 Mouse solto! hasMoved:', hasMoved);
-      
       if (!hasMoved && mouseDownPositionRef.current && onSeek) {
-        // It was a click, not a drag - seek to position
         const clickTime = mouseDownPositionRef.current.time;
-        console.log('👆 Clique simples detectado - Seeking para:', clickTime);
         onSeek(clickTime);
-        // Don't create a region
         setDragStart(null);
         setDragEnd(null);
       } else if (hasMoved && dragStart !== null && dragEnd !== null) {
-        // It was a drag - create region
         const start = Math.min(dragStart, dragEnd);
         const end = Math.max(dragStart, dragEnd);
         const regionDuration = end - start;
         
-        console.log('🖱️ Arrasto detectado - Criando região:', { start, end, duration: regionDuration });
-        
         if (regionDuration > 0.1) {
-          console.log('✅ Região válida! Chamando onRegionSelect');
           onRegionSelect({ start, end });
         } else {
-          console.log('❌ Região muito pequena:', regionDuration, 's (mínimo 0.1s)');
-          // Clear the region if it's too small
           setDragStart(null);
           setDragEnd(null);
         }
       }
       
-      // Reset
       mouseDownPositionRef.current = null;
       setHasMoved(false);
     }
     
-    // Update ref for next comparison
     prevIsDraggingRef.current = isDragging;
   }, [isDragging, hasMoved, dragStart, dragEnd, onSeek, onRegionSelect]);
 

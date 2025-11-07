@@ -17,14 +17,12 @@ const DashboardPage = () => {
     popularProjects: []
   });
 
-  // Carregar projetos da API
   useEffect(() => {
     const loadProjects = async () => {
       try {
         setIsLoading(true);
         const projectsData = await projectService.getProjects();
         
-        // Formatar projetos
         const formattedProjects = projectsData.map(project => ({
           id: project.id,
           name: project.title,
@@ -42,19 +40,16 @@ const DashboardPage = () => {
           setCurrentProject(formattedProjects[0]);
         }
 
-        // Calcular estatísticas
         const longestProject = formattedProjects.reduce((prev, current) => {
           const prevDur = parseDuration(prev.duration);
           const currDur = parseDuration(current.duration);
           return prevDur > currDur ? prev : current;
         }, formattedProjects[0] || null);
 
-        // Ordenar por última atualização (mais recentes primeiro)
         const popularProjects = [...formattedProjects]
           .sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated))
           .slice(0, 3);
 
-        // Contar total de tracks de todos os projetos
         const totalTracks = formattedProjects.reduce((sum, p) => sum + p.tracks, 0);
 
         setStats({
@@ -64,7 +59,6 @@ const DashboardPage = () => {
           popularProjects
         });
       } catch (error) {
-        console.error('Erro ao carregar projetos:', error);
       } finally {
         setIsLoading(false);
       }
@@ -106,7 +100,6 @@ const DashboardPage = () => {
         url: `${window.location.origin}/studio/${project.id}`
       });
     } else {
-      // Fallback para navegadores que não suportam Web Share API
       const url = `${window.location.origin}/studio/${project.id}`;
       navigator.clipboard.writeText(url);
       alert('Link copiado para a área de transferência!');
@@ -114,15 +107,12 @@ const DashboardPage = () => {
   };
 
   const handleExport = (project, format = 'mp3') => {
-    // Simular exportação
     alert(`Exportando "${project.name}" em formato ${format.toUpperCase()}...`);
-    // Em produção, isso faria uma chamada para a API de exportação
   };
 
   const handleDownloadMP3 = (project) => {
-    // Simular download de MP3
     const link = document.createElement('a');
-    link.href = '#'; // Em produção, seria a URL real do arquivo
+    link.href = '#';
     link.download = `${project.name}.mp3`;
     link.click();
     alert(`Baixando "${project.name}.mp3"...`);
@@ -153,7 +143,6 @@ const DashboardPage = () => {
             <p>Gerencie seus projetos musicais</p>
           </div>
 
-          {/* Estatísticas Rápidas */}
           <section className="stats-section">
             <div className="stats-grid">
               <div className="stat-card">
@@ -192,7 +181,6 @@ const DashboardPage = () => {
             </div>
           </section>
 
-          {/* Projetos Recentes */}
           {stats.popularProjects.length > 0 && (
             <section className="popular-projects-section">
               <h3>Projetos Recentes</h3>
@@ -223,7 +211,6 @@ const DashboardPage = () => {
             </section>
           )}
 
-          {/* Lista de Projetos */}
           <section className="projects-section">
             <div className="section-header">
               <h3>Meus Projetos</h3>
@@ -255,7 +242,6 @@ const DashboardPage = () => {
                   key={project.id} 
                   className="project-card"
                   onClick={(e) => {
-                    // Não navegar se o clique foi em um botão ou dentro de project-actions
                     if (!e.target.closest('.project-actions') && !e.target.closest('button')) {
                       navigate(`/studio/${project.id}`);
                     }

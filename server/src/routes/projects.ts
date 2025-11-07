@@ -10,10 +10,8 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-// Todas as rotas requerem autenticação
 router.use(authenticateToken);
 
-// Rotas de projetos
 router.get('/', getProjects);
 router.get('/:id', getProject);
 router.post('/', createProject);

@@ -4,9 +4,6 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Iniciando seed do banco de dados...');
-
-  // Limpar dados existentes
   await prisma.notification.deleteMany();
   await prisma.message.deleteMany();
   await prisma.track.deleteMany();
@@ -14,7 +11,6 @@ async function main() {
   await prisma.project.deleteMany();
   await prisma.user.deleteMany();
 
-  // Criar usuários de exemplo
   const hashedPassword = await bcrypt.hash('123456', 10);
 
   const user1 = await prisma.user.create({
@@ -47,7 +43,6 @@ async function main() {
     },
   });
 
-  // Criar projetos de exemplo
   const project1 = await prisma.project.create({
     data: {
       title: 'Álbum Colaborativo',
@@ -70,7 +65,6 @@ async function main() {
     },
   });
 
-  // Adicionar colaboradores aos projetos
   await prisma.projectCollaborator.create({
     data: {
       userId: user2.id,
@@ -95,7 +89,6 @@ async function main() {
     },
   });
 
-  // Criar algumas mensagens de exemplo
   await prisma.message.create({
     data: {
       content: 'Bem-vindos ao projeto! Vamos criar algo incrível juntos.',
@@ -112,7 +105,6 @@ async function main() {
     },
   });
 
-  // Criar notificações de exemplo
   await prisma.notification.create({
     data: {
       title: 'Bem-vindo à MusicCollab!',
@@ -130,18 +122,10 @@ async function main() {
       userId: user2.id,
     },
   });
-
-  console.log('✅ Seed concluído com sucesso!');
-  console.log(`👤 Usuários criados: ${await prisma.user.count()}`);
-  console.log(`🎵 Projetos criados: ${await prisma.project.count()}`);
-  console.log(`🤝 Colaborações criadas: ${await prisma.projectCollaborator.count()}`);
-  console.log(`💬 Mensagens criadas: ${await prisma.message.count()}`);
-  console.log(`🔔 Notificações criadas: ${await prisma.notification.count()}`);
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Erro durante o seed:', e);
+  .catch(() => {
     process.exit(1);
   })
   .finally(async () => {

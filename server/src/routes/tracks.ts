@@ -13,10 +13,8 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-// Todas as rotas requerem autenticação
 router.use(authenticateToken);
 
-// Rotas de tracks
 router.post('/', uploadMiddleware, createTrack);
 router.get('/project/:projectId', getProjectTracks);
 router.get('/:id', getTrack);

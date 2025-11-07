@@ -3,7 +3,6 @@ import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 import multer from 'multer';
 
-// Configurar multer para processar arquivos em memória
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -28,10 +27,8 @@ const upload = multer({
   }
 });
 
-// Middleware para upload de arquivo único
 export const uploadMiddleware = upload.single('audio');
 
-// Criar track com upload de áudio
 export const createTrack = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -58,7 +55,6 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verificar se o projeto existe e se o usuário tem permissão
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
@@ -82,12 +78,9 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Obter duração do áudio (será calculado no frontend ou aqui se necessário)
-    // Por enquanto, vamos usar o tamanho do arquivo como referência
     const audioBuffer = Buffer.from(file.buffer);
     const fileSize = audioBuffer.length;
 
-    // Criar track no banco de dados
     const track = await prisma.track.create({
       data: {
         name: name || file.originalname.replace(/\.[^/.]+$/, ''),
@@ -95,8 +88,8 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
         filePath: file.originalname,
         fileSize: fileSize,
         mimeType: file.mimetype,
-        audioData: audioBuffer, // Armazenar dados binários no PostgreSQL
-        duration: null, // Será atualizado quando o áudio for processado
+        audioData: audioBuffer,
+        duration: null,
         projectId: projectId
       }
     });
@@ -117,7 +110,6 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error: any) {
-    console.error('Erro ao criar track:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Erro interno do servidor'
@@ -125,7 +117,6 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Obter track por ID (sem dados de áudio)
 export const getTrack = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -165,7 +156,6 @@ export const getTrack = async (req: AuthRequest, res: Response) => {
         createdAt: true,
         updatedAt: true,
         projectId: true
-        // Não incluir audioData aqui para economizar banda
       }
     });
 
@@ -181,7 +171,6 @@ export const getTrack = async (req: AuthRequest, res: Response) => {
       track
     });
   } catch (error) {
-    console.error('Erro ao obter track:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -189,7 +178,6 @@ export const getTrack = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Download do arquivo de áudio
 export const downloadTrackAudio = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -234,17 +222,14 @@ export const downloadTrackAudio = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Converter Buffer para Buffer do Node.js
     const audioBuffer = Buffer.from((track as any).audioData);
 
-    // Configurar headers para download
     res.setHeader('Content-Type', track.mimeType || 'audio/mpeg');
     res.setHeader('Content-Disposition', `attachment; filename="${track.filePath || track.name}.mp3"`);
     res.setHeader('Content-Length', audioBuffer.length);
 
     return res.send(audioBuffer);
   } catch (error) {
-    console.error('Erro ao fazer download do áudio:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -252,7 +237,6 @@ export const downloadTrackAudio = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Obter URL de áudio (retorna como base64 ou blob URL)
 export const getTrackAudio = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -296,7 +280,6 @@ export const getTrackAudio = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Converter Buffer para base64
     const audioBuffer = Buffer.from((track as any).audioData);
     const base64Audio = audioBuffer.toString('base64');
     const dataUrl = `data:${track.mimeType || 'audio/mpeg'};base64,${base64Audio}`;
@@ -307,7 +290,6 @@ export const getTrackAudio = async (req: AuthRequest, res: Response) => {
       mimeType: track.mimeType
     });
   } catch (error) {
-    console.error('Erro ao obter áudio:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -315,7 +297,6 @@ export const getTrackAudio = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Listar tracks de um projeto
 export const getProjectTracks = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -327,7 +308,6 @@ export const getProjectTracks = async (req: AuthRequest, res: Response) => {
 
     const { projectId } = req.params;
 
-    // Verificar permissão
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
@@ -366,7 +346,6 @@ export const getProjectTracks = async (req: AuthRequest, res: Response) => {
         mimeType: true,
         createdAt: true,
         updatedAt: true
-        // Não incluir audioData para economizar banda
       },
       orderBy: {
         createdAt: 'asc'
@@ -378,7 +357,6 @@ export const getProjectTracks = async (req: AuthRequest, res: Response) => {
       tracks
     });
   } catch (error) {
-    console.error('Erro ao listar tracks:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -386,7 +364,6 @@ export const getProjectTracks = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Atualizar track
 export const updateTrack = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -399,7 +376,6 @@ export const updateTrack = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { name, description, duration } = req.body;
 
-    // Verificar permissão
     const existingTrack = await prisma.track.findFirst({
       where: {
         id,
@@ -456,7 +432,6 @@ export const updateTrack = async (req: AuthRequest, res: Response) => {
       track: updatedTrack
     });
   } catch (error) {
-    console.error('Erro ao atualizar track:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -464,7 +439,6 @@ export const updateTrack = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Deletar track (soft delete)
 export const deleteTrack = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -476,7 +450,6 @@ export const deleteTrack = async (req: AuthRequest, res: Response) => {
 
     const { id } = req.params;
 
-    // Verificar permissão
     const existingTrack = await prisma.track.findFirst({
       where: {
         id,
@@ -506,7 +479,6 @@ export const deleteTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Soft delete
     await prisma.track.update({
       where: { id },
       data: { isActive: false }
@@ -517,7 +489,6 @@ export const deleteTrack = async (req: AuthRequest, res: Response) => {
       message: 'Track deletada com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao deletar track:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'

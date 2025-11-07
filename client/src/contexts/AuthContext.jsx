@@ -17,7 +17,6 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Verificar se há um token salvo no localStorage
     const token = localStorage.getItem('token');
     if (token) {
       authService.getProfile()
@@ -55,7 +54,6 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       const response = await authService.register(userData);
-      console.log(response);
       const { user: newUser, token } = response;
       
       localStorage.setItem('token', token);

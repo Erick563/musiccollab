@@ -44,8 +44,6 @@ export const register = async (req: Request, res: Response) => {
       token
     });
   } catch (error) {
-    console.error('Erro no registro:', error);
-
     if (error instanceof Error && error.message === 'Email já está em uso') {
       return res.status(409).json({
         success: false,
@@ -98,7 +96,6 @@ export const login = async (req: Request, res: Response) => {
       token
     });
   } catch (error) {
-    console.error('Erro no login:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -130,7 +127,6 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
       user: publicUser
     });
   } catch (error) {
-    console.error('Erro ao obter perfil:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -178,7 +174,6 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       user: publicUser
     });
   } catch (error) {
-    console.error('Erro ao atualizar perfil:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -234,7 +229,6 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
       message: 'Senha alterada com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao alterar senha:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'

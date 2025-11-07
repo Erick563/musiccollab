@@ -32,6 +32,14 @@
   font-weight: bold;
   color: #00d4ff;
   white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.logo:hover {
+  color: #00f2fe;
+  transform: scale(1.05);
 }
 
 .project-name-input {
@@ -56,30 +64,6 @@
   display: flex;
   gap: 1.5rem;
   align-items: center;
-}
-
-.bpm-control {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-}
-
-.bpm-control label {
-  color: #00d4ff;
-  font-weight: bold;
-}
-
-.bpm-control input {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  padding: 0.25rem 0.5rem;
-  color: #fff;
-  width: 60px;
-  text-align: center;
 }
 
 .time-display {

@@ -2,17 +2,13 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
 
-// Interface para o estado do projeto
 interface ProjectState {
   tracks: any[];
-  markers: any[];
-  bpm: number;
   masterVolume: number;
   zoom: number;
   currentTime?: number;
 }
 
-// Listar projetos do usuário
 export const getProjects = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -73,7 +69,6 @@ export const getProjects = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Formatar projetos para resposta
     const formattedProjects = projects.map(project => {
       const state = project.state as ProjectState | null;
       const duration = state && state.tracks && state.tracks.length > 0
@@ -102,7 +97,6 @@ export const getProjects = async (req: AuthRequest, res: Response) => {
       projects: formattedProjects
     });
   } catch (error) {
-    console.error('Erro ao listar projetos:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -110,7 +104,6 @@ export const getProjects = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Obter projeto por ID
 export const getProject = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -190,7 +183,6 @@ export const getProject = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Erro ao obter projeto:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -198,7 +190,6 @@ export const getProject = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Criar novo projeto
 export const createProject = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -256,7 +247,6 @@ export const createProject = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Erro ao criar projeto:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -264,7 +254,6 @@ export const createProject = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Atualizar projeto
 export const updateProject = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -277,7 +266,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { title, description, genre, isPublic, status, state } = req.body;
 
-    // Verificar se o projeto existe e se o usuário tem permissão
     const existingProject = await prisma.project.findFirst({
       where: {
         id,
@@ -357,7 +345,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error) {
-    console.error('Erro ao atualizar projeto:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
@@ -365,7 +352,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// Deletar projeto
 export const deleteProject = async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
@@ -377,7 +363,6 @@ export const deleteProject = async (req: AuthRequest, res: Response) => {
 
     const { id } = req.params;
 
-    // Verificar se o projeto existe e se o usuário é o dono
     const existingProject = await prisma.project.findFirst({
       where: {
         id,
@@ -401,7 +386,6 @@ export const deleteProject = async (req: AuthRequest, res: Response) => {
       message: 'Projeto deletado com sucesso'
     });
   } catch (error) {
-    console.error('Erro ao deletar projeto:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'

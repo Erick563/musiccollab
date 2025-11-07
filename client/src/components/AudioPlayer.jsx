@@ -41,9 +41,7 @@ const AudioPlayer = ({ track, isPlaying, onPlayPause, onStop, masterVolume }) =>
     if (!audio) return;
 
     if (isPlaying) {
-      audio.play().catch(err => {
-        console.error('Error playing audio:', err);
-      });
+      audio.play().catch(() => {});
     } else {
       audio.pause();
     }
@@ -53,13 +51,11 @@ const AudioPlayer = ({ track, isPlaying, onPlayPause, onStop, masterVolume }) =>
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Aplicar volume master (0-100) e volume da track (0-100)
     const combinedVolume = (masterVolume / 100) * (track.volume / 100);
     audio.volume = combinedVolume;
   }, [masterVolume, track.volume]);
 
   useEffect(() => {
-    // Reset quando a track mudar
     setCurrentTime(0);
     setIsLoaded(false);
   }, [track.id]);

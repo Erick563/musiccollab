@@ -23,6 +23,10 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
 
       const sampleRate = 44100;
       const lengthInSamples = Math.ceil(duration * sampleRate);
+
+      const numberOfChannels = buffers.length > 0 
+        ? Math.max(...buffers.map(({ buffer }) => buffer.numberOfChannels), 2)
+        : 2;
       const offlineContext = new OfflineAudioContext(
         numberOfChannels,
         lengthInSamples,
@@ -183,6 +187,8 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
     const numberOfChannels = buffer.numberOfChannels;
     const length = buffer.length;
     const sampleRate = buffer.sampleRate;
+
+    const bytesPerSample = quality === 'ultra' ? 4 : quality === 'high' && format === 'wav' ? 3 : 2;
     const blockAlign = numberOfChannels * bytesPerSample;
 
     const wavBuffer = new ArrayBuffer(44 + length * blockAlign);

@@ -7,6 +7,8 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import os from 'os';
+import path from 'path';
 
 import { config, connectDatabase } from './config/database';
 import { logger } from './utils/logger';
@@ -23,16 +25,24 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
+// Configurar Socket.IO para aceitar conexões da rede local
+const socketCorsOrigin = process.env.SOCKET_CORS_ORIGIN;
 const io = new Server(server, {
   cors: {
-    origin: process.env.SOCKET_CORS_ORIGIN || "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: socketCorsOrigin ? socketCorsOrigin.split(',') : true, // Permitir todas as origens se não especificado
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
 const PORT = process.env.PORT || 3001;
+const HOST = process.env.HOST || '0.0.0.0'; // Escuta em todas as interfaces de rede
 
-app.use(helmet());
+// Configurar Helmet - em produção, permitir recursos estáticos do React
+const isProduction = process.env.NODE_ENV === 'production';
+app.use(helmet({
+  contentSecurityPolicy: isProduction ? false : undefined, // Desabilitar CSP em produção para permitir recursos do React
+}));
 app.use(compression());
 
 const limiter = rateLimit({
@@ -42,7 +52,33 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-app.use(cors());
+// Configurar CORS para aceitar requisições da rede local
+const corsOptions = {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow: boolean) => void) {
+    // Permitir requisições sem origin (mobile apps, Postman, etc)
+    if (!origin) return callback(null, true);
+    
+    // Permitir localhost e IPs da rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    const allowedOrigins = [
+      /^http:\/\/localhost:\d+$/,
+      /^http:\/\/127\.0\.0\.1:\d+$/,
+      /^http:\/\/192\.168\.\d+\.\d+:\d+$/,
+      /^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
+      /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+$/
+    ];
+    
+    // Se SOCKET_CORS_ORIGIN estiver definido, também permitir
+    if (process.env.SOCKET_CORS_ORIGIN) {
+      allowedOrigins.push(new RegExp('^' + process.env.SOCKET_CORS_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
+    }
+    
+    const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
+    callback(null, isAllowed);
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
@@ -51,12 +87,57 @@ app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tracks', trackRoutes);
 
+// Servir arquivos estáticos do React em produção
+if (isProduction) {
+  const clientBuildPath = path.join(__dirname, '../../client/build');
+  app.use(express.static(clientBuildPath));
+  
+  // Para todas as rotas que não são API, servir o index.html do React (SPA)
+  // Rotas da API não encontradas serão tratadas pelo middleware notFound abaixo
+  app.get('*', (req, res, next) => {
+    // Se for rota da API, passar para o próximo middleware (notFound)
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    // Caso contrário, servir o index.html do React
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
+
+// Middleware para rotas não encontradas (principalmente rotas da API)
 app.use(notFound);
 app.use(errorHandler);
 
-server.listen(PORT, async () => {
+server.listen(PORT as number, HOST as string, async () => {
   await connectDatabase();
+  
+  // Obter IP da máquina na rede local
+  const networkInterfaces = os.networkInterfaces();
+  const localIPs: string[] = [];
+  
+  Object.keys(networkInterfaces).forEach((interfaceName) => {
+    const addresses = networkInterfaces[interfaceName];
+    if (addresses) {
+      addresses.forEach((address) => {
+        // Compatível com Node.js antigo (family === 'IPv4') e novo (family === 4)
+        const family = address.family;
+        const isIPv4 = family === 'IPv4' || (typeof family === 'number' && family === 4);
+        if (isIPv4 && !address.internal) {
+          localIPs.push(address.address);
+        }
+      });
+    }
+  });
+  
   logger.info(`🚀 Servidor rodando na porta ${PORT}`);
+  logger.info(`🌐 Acessível em:`);
+  logger.info(`   - http://localhost:${PORT}`);
+  logger.info(`   - http://127.0.0.1:${PORT}`);
+  if (localIPs.length > 0) {
+    localIPs.forEach(ip => {
+      logger.info(`   - http://${ip}:${PORT}`);
+    });
+  }
   logger.info(`📡 Socket.IO configurado`);
 });
 

@@ -6,6 +6,17 @@ export interface AppError extends Error {
   isOperational?: boolean;
 }
 
+interface ValidationErrorItem {
+  message: string;
+  path?: string;
+  value?: unknown;
+}
+
+interface ValidationError extends Error {
+  name: 'ValidationError';
+  errors: Record<string, ValidationErrorItem>;
+}
+
 export const errorHandler = (
   err: AppError,
   req: Request,
@@ -23,7 +34,10 @@ export const errorHandler = (
   }
 
   if (err.name === 'ValidationError') {
-    const message = Object.values((err as any).errors).map((val: any) => val.message).join(', ');
+    const validationErr = err as ValidationError;
+    const message = Object.values(validationErr.errors)
+      .map((val: ValidationErrorItem) => val.message)
+      .join(', ');
     error = { message, statusCode: 400 } as AppError;
   }
 

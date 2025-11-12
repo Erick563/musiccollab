@@ -1,0 +1,244 @@
+.collaborators-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.collaborators-panel {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 24px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.collaborators-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.collaborators-panel-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 24px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #fff;
+}
+
+.error-message {
+  background: #ff4444;
+  color: #fff;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.add-collaborator-form {
+  background: #2a2a2a;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.add-collaborator-form h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #fff;
+  font-size: 16px;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.form-row input,
+.form-row select,
+.form-row button {
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-row input {
+  flex: 2;
+  background: #333;
+  color: #fff;
+}
+
+.form-row select {
+  flex: 1;
+  background: #333;
+  color: #fff;
+  cursor: pointer;
+}
+
+.form-row button {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.form-row button:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.form-row button:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
+.collaborators-list h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #fff;
+  font-size: 16px;
+}
+
+.collaborators-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.collaborator-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #2a2a2a;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: background 0.2s;
+}
+
+.collaborator-item:hover {
+  background: #333;
+}
+
+.collaborator-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.collaborator-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.collaborator-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.collaborator-details {
+  flex: 1;
+}
+
+.collaborator-name {
+  color: #fff;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.collaborator-email {
+  color: #999;
+  font-size: 12px;
+}
+
+.collaborator-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-select {
+  background: #333;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.role-badge {
+  background: #444;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.remove-btn {
+  background: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.2s;
+}
+
+.remove-btn:hover {
+  background: #cc0000;
+}
+
+.loading,
+.empty-state {
+  text-align: center;
+  color: #999;
+  padding: 20px;
+}
+

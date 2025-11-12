@@ -1,12 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useCollaboration } from '../contexts/CollaborationContext';
 import { projectService } from '../services/projectService';
 import { trackService } from '../services/trackService';
 import AudioUploader from '../components/AudioUploader';
 import TimelineTrack from '../components/TimelineTrack';
 import TimelineRuler from '../components/TimelineRuler';
 import ExportModal from '../components/ExportModal';
+import CollaboratorsPanel from '../components/CollaboratorsPanel';
+import OnlineUsers from '../components/OnlineUsers';
+import UserCursors from '../components/UserCursors';
 import { ToastContainer } from '../components/Toast';
 import './StudioPage.css';
 
@@ -14,6 +18,18 @@ const StudioPage = () => {
   const { user, logout } = useAuth();
   const { id: projectId } = useParams();
   const navigate = useNavigate();
+  const {
+    onlineUsers,
+    lockedTracks,
+    joinProject,
+    leaveProject,
+    updateCursor,
+    requestLock,
+    releaseLock,
+    isTrackLocked,
+    getTrackLocker
+  } = useCollaboration();
+  
   const [tracks, setTracks] = useState([]);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [projectName, setProjectName] = useState('Novo Projeto');
@@ -26,10 +42,16 @@ const StudioPage = () => {
   const [masterVolume, setMasterVolume] = useState(75);
   const [zoom, setZoom] = useState(1);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showCollaboratorsPanel, setShowCollaboratorsPanel] = useState(false);
   const [clipboard, setClipboard] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [projectOwner, setProjectOwner] = useState(null);
+  const [editingTrackId, setEditingTrackId] = useState(null);
   const playbackIntervalRef = useRef(null);
   const selectedTrackRef = useRef(null);
+  const loadedProjectIdRef = useRef(null);
+  const toastShownRef = useRef(false);
+  const loadingCancelledRef = useRef(false);
 
   useEffect(() => {
     if (tracks.length === 0) {
@@ -196,12 +218,39 @@ const StudioPage = () => {
     });
   }, [selectedTrack]);
 
-  const handleTrackUpdate = (trackId, updates) => {
+  const handleTrackUpdate = async (trackId, updates) => {
+    // Verificar se a track está bloqueada por outro usuário
+    if (isTrackLocked(trackId) && editingTrackId !== trackId) {
+      const locker = getTrackLocker(trackId);
+      showToast(`Esta track está sendo editada por ${locker?.userName}`, 'warning');
+      return;
+    }
+
+    // Se não estamos editando ainda, solicitar bloqueio
+    if (!editingTrackId || editingTrackId !== trackId) {
+      try {
+        await requestLock(trackId);
+        setEditingTrackId(trackId);
+        showToast('Você está editando esta track', 'info', 2000);
+      } catch (error) {
+        showToast(error.message || 'Não foi possível bloquear a track', 'error');
+        return;
+      }
+    }
+
     setTracks(prevTracks => 
       prevTracks.map(track => 
         track.id === trackId ? { ...track, ...updates } : track
       )
     );
+
+    // Liberar bloqueio após 3 segundos de inatividade
+    setTimeout(() => {
+      if (editingTrackId === trackId) {
+        releaseLock(trackId);
+        setEditingTrackId(null);
+      }
+    }, 3000);
   };
 
   const handlePlayPause = useCallback(() => {
@@ -223,20 +272,50 @@ const StudioPage = () => {
   };
 
   useEffect(() => {
+    // Reset flags quando projectId muda
+    if (loadedProjectIdRef.current !== projectId) {
+      toastShownRef.current = false;
+      loadingCancelledRef.current = false;
+    }
+    
+    // Marca como não cancelado para esta execução
+    loadingCancelledRef.current = false;
+
     const loadProject = async () => {
       if (!projectId) {
         setIsLoading(false);
+        loadedProjectIdRef.current = null;
+        toastShownRef.current = false;
         return;
       }
+
+      // Evita carregar o mesmo projeto múltiplas vezes
+      // Marca ANTES de começar para prevenir execuções simultâneas
+      if (loadedProjectIdRef.current === projectId && toastShownRef.current) {
+        return;
+      }
+      
+      // Marca imediatamente para prevenir execuções duplicadas
+      if (loadedProjectIdRef.current === projectId) {
+        return;
+      }
+      
+      // Marca o projeto como sendo carregado ANTES de começar
+      loadedProjectIdRef.current = projectId;
 
       try {
         setIsLoading(true);
         const project = await projectService.getProject(projectId);
         
+        if (loadingCancelledRef.current) return;
+        
         setCurrentProjectId(project.id);
         setProjectName(project.title || 'Novo Projeto');
+        setProjectOwner(project.owner);
         
         const dbTracks = await trackService.getProjectTracks(project.id);
+        
+        if (loadingCancelledRef.current) return;
         
         const restoredTracks = await Promise.all(
           dbTracks.map(async (dbTrack) => {
@@ -261,6 +340,8 @@ const StudioPage = () => {
             }
           })
         );
+        
+        if (loadingCancelledRef.current) return;
         
         const validTracks = restoredTracks.filter(t => t !== null);
         
@@ -310,8 +391,20 @@ const StudioPage = () => {
           setTracks(validTracks);
         }
         
-        showToast('Projeto carregado com sucesso!', 'success');
+        // Marca o projeto como carregado e mostra o toast apenas uma vez
+        // Verifica se ainda é o mesmo projeto que começamos a carregar
+        if (!loadingCancelledRef.current && loadedProjectIdRef.current === projectId && !toastShownRef.current) {
+          toastShownRef.current = true;
+          showToast('Projeto carregado com sucesso!', 'success');
+        }
       } catch (error) {
+        if (loadingCancelledRef.current) return;
+        
+        // Só reseta se ainda for o mesmo projeto que começamos a carregar
+        if (loadedProjectIdRef.current === projectId) {
+          loadedProjectIdRef.current = null;
+          toastShownRef.current = false;
+        }
         if (error.response?.status === 404 || error.response?.status === 403) {
           showToast(
             error.response?.data?.message || 'Projeto não encontrado ou você não tem permissão para acessá-lo',
@@ -325,12 +418,46 @@ const StudioPage = () => {
           setCurrentProjectId(null);
         }
       } finally {
-        setIsLoading(false);
+        if (!loadingCancelledRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
     loadProject();
+    
+    // Cleanup function para cancelar operações pendentes
+    return () => {
+      loadingCancelledRef.current = true;
+    };
   }, [projectId]);
+
+  // Entrar/sair do projeto via WebSocket para colaboração
+  useEffect(() => {
+    if (currentProjectId && user) {
+      joinProject(currentProjectId);
+      
+      return () => {
+        leaveProject(currentProjectId);
+        
+        // Liberar bloqueio se estiver editando
+        if (editingTrackId) {
+          releaseLock(editingTrackId);
+        }
+      };
+    }
+  }, [currentProjectId, user, joinProject, leaveProject]);
+
+  // Atualizar posição do cursor para outros usuários
+  useEffect(() => {
+    if (currentProjectId && !isPlaying) {
+      const debounceTimer = setTimeout(() => {
+        updateCursor(currentTime);
+      }, 100);
+      
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [currentTime, currentProjectId, isPlaying, updateCursor]);
 
   const processAudioSegment = async (track) => {
     try {
@@ -1027,6 +1154,25 @@ const StudioPage = () => {
             </div>
           </div>
 
+          {currentProjectId && (
+            <>
+              <div className="sidebar-section">
+                <h3>Colaboração</h3>
+                <button 
+                  className="collaborators-btn"
+                  onClick={() => setShowCollaboratorsPanel(true)}
+                  title="Gerenciar colaboradores"
+                >
+                  👥 Colaboradores
+                </button>
+              </div>
+
+              <div className="sidebar-section">
+                <OnlineUsers users={onlineUsers} />
+              </div>
+            </>
+          )}
+
           <div className="sidebar-section">
             <h3>Atalhos</h3>
             <div className="shortcuts">
@@ -1089,6 +1235,13 @@ const StudioPage = () => {
           ) : (
             <>
               <TimelineRuler duration={duration} />
+              {currentProjectId && onlineUsers.length > 0 && (
+                <UserCursors 
+                  users={onlineUsers.filter(u => u.userId !== user?.id)} 
+                  duration={duration} 
+                  zoom={zoom} 
+                />
+              )}
               <div className="timeline-tracks">
                 {tracks.map(track => {
                   const hasSoloedTracks = tracks.some(t => t.solo);
@@ -1125,6 +1278,14 @@ const StudioPage = () => {
         tracks={tracks}
         duration={duration}
       />
+
+      {showCollaboratorsPanel && currentProjectId && (
+        <CollaboratorsPanel
+          projectId={currentProjectId}
+          isOwner={projectOwner?.id === user?.id}
+          onClose={() => setShowCollaboratorsPanel(false)}
+        />
+      )}
 
       <ToastContainer toasts={toasts} onRemoveToast={removeToast} />
     </div>

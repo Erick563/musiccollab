@@ -127,7 +127,9 @@ const DashboardPage = () => {
               <h1>🎵 MusicCollab</h1>
             </div>
             <div className="user-menu">
-              <span className="user-name">Olá, {user?.name}!</span>
+              <span className="user-name" style={{ color: '#1a1a1a', fontWeight: 600 }}>
+                Olá, {user?.name}!
+              </span>
               <button className="logout-btn" onClick={logout}>
                 Sair
               </button>

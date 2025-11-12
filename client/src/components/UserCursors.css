@@ -1,0 +1,42 @@
+.user-cursors-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.user-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  pointer-events: none;
+  transition: left 0.3s ease;
+}
+
+.cursor-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-left: 2px solid;
+  opacity: 0.7;
+}
+
+.cursor-label {
+  position: absolute;
+  top: -24px;
+  left: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: white;
+  white-space: nowrap;
+  font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+}
+

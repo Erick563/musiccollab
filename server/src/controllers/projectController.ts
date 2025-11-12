@@ -216,7 +216,14 @@ export const createProject = async (req: AuthRequest, res: Response) => {
         isPublic: isPublic || false,
         status: 'DRAFT',
         state: state || null,
-        ownerId: req.user.id
+        ownerId: req.user.id,
+        // Adicionar o criador automaticamente como colaborador OWNER
+        collaborators: {
+          create: {
+            userId: req.user.id,
+            role: 'OWNER'
+          }
+        }
       },
       include: {
         owner: {
@@ -225,6 +232,18 @@ export const createProject = async (req: AuthRequest, res: Response) => {
             name: true,
             username: true,
             avatar: true
+          }
+        },
+        collaborators: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+                avatar: true
+              }
+            }
           }
         }
       }
@@ -242,6 +261,11 @@ export const createProject = async (req: AuthRequest, res: Response) => {
         status: project.status,
         state: project.state,
         owner: project.owner,
+        collaborators: project.collaborators.map(c => ({
+          id: c.id,
+          role: c.role,
+          user: c.user
+        })),
         createdAt: project.createdAt,
         updatedAt: project.updatedAt
       }
@@ -384,6 +408,349 @@ export const deleteProject = async (req: AuthRequest, res: Response) => {
     return res.json({
       success: true,
       message: 'Projeto deletado com sucesso'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
+// Colaboradores
+
+export const getCollaborators = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado'
+      });
+    }
+
+    const { projectId } = req.params;
+
+    // Verificar se o usuário tem acesso ao projeto
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        OR: [
+          { ownerId: req.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: req.user.id
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Projeto não encontrado ou você não tem permissão para acessá-lo'
+      });
+    }
+
+    const collaborators = await prisma.projectCollaborator.findMany({
+      where: {
+        projectId
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+            avatar: true
+          }
+        }
+      }
+    });
+
+    return res.json({
+      success: true,
+      collaborators: collaborators.map(c => ({
+        id: c.id,
+        role: c.role,
+        joinedAt: c.joinedAt,
+        user: c.user
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
+export const addCollaborator = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado'
+      });
+    }
+
+    const { projectId } = req.params;
+    const { userEmail, role = 'COLLABORATOR' } = req.body;
+
+    if (!userEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email do usuário é obrigatório'
+      });
+    }
+
+    // Verificar se o usuário atual é o dono ou admin do projeto
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        OR: [
+          { ownerId: req.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: req.user.id,
+                role: {
+                  in: ['OWNER', 'ADMIN']
+                }
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!project) {
+      return res.status(403).json({
+        success: false,
+        message: 'Você não tem permissão para adicionar colaboradores a este projeto'
+      });
+    }
+
+    // Buscar o usuário a ser adicionado
+    const userToAdd = await prisma.user.findUnique({
+      where: {
+        email: userEmail
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        avatar: true
+      }
+    });
+
+    if (!userToAdd) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuário não encontrado'
+      });
+    }
+
+    // Verificar se o usuário já é colaborador
+    const existingCollaborator = await prisma.projectCollaborator.findUnique({
+      where: {
+        userId_projectId: {
+          userId: userToAdd.id,
+          projectId
+        }
+      }
+    });
+
+    if (existingCollaborator) {
+      return res.status(400).json({
+        success: false,
+        message: 'Usuário já é colaborador deste projeto'
+      });
+    }
+
+    // Verificar se o usuário é o dono
+    if (project.ownerId === userToAdd.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'O dono do projeto já tem acesso total'
+      });
+    }
+
+    // Adicionar colaborador
+    const collaborator = await prisma.projectCollaborator.create({
+      data: {
+        userId: userToAdd.id,
+        projectId,
+        role
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+            avatar: true
+          }
+        }
+      }
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Colaborador adicionado com sucesso',
+      collaborator: {
+        id: collaborator.id,
+        role: collaborator.role,
+        joinedAt: collaborator.joinedAt,
+        user: collaborator.user
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
+export const updateCollaborator = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado'
+      });
+    }
+
+    const { projectId, collaboratorId } = req.params;
+    const { role } = req.body;
+
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role é obrigatório'
+      });
+    }
+
+    // Verificar se o usuário atual é o dono ou admin do projeto
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        OR: [
+          { ownerId: req.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: req.user.id,
+                role: {
+                  in: ['OWNER', 'ADMIN']
+                }
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!project) {
+      return res.status(403).json({
+        success: false,
+        message: 'Você não tem permissão para atualizar colaboradores deste projeto'
+      });
+    }
+
+    // Atualizar colaborador
+    const collaborator = await prisma.projectCollaborator.update({
+      where: {
+        id: collaboratorId
+      },
+      data: {
+        role
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+            avatar: true
+          }
+        }
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Colaborador atualizado com sucesso',
+      collaborator: {
+        id: collaborator.id,
+        role: collaborator.role,
+        joinedAt: collaborator.joinedAt,
+        user: collaborator.user
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno do servidor'
+    });
+  }
+};
+
+export const removeCollaborator = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Usuário não autenticado'
+      });
+    }
+
+    const { projectId, collaboratorId } = req.params;
+
+    // Verificar se o usuário atual é o dono ou admin do projeto
+    const project = await prisma.project.findFirst({
+      where: {
+        id: projectId,
+        OR: [
+          { ownerId: req.user.id },
+          {
+            collaborators: {
+              some: {
+                userId: req.user.id,
+                role: {
+                  in: ['OWNER', 'ADMIN']
+                }
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    if (!project) {
+      return res.status(403).json({
+        success: false,
+        message: 'Você não tem permissão para remover colaboradores deste projeto'
+      });
+    }
+
+    // Remover colaborador
+    await prisma.projectCollaborator.delete({
+      where: {
+        id: collaboratorId
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Colaborador removido com sucesso'
     });
   } catch (error) {
     return res.status(500).json({

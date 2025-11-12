@@ -19,6 +19,7 @@ import trackRoutes from './routes/tracks';
 
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
+import { setupCollaborationHandlers } from './handlers/collaborationHandler';
 
 dotenv.config();
 
@@ -108,6 +109,9 @@ if (isProduction) {
 app.use(notFound);
 app.use(errorHandler);
 
+// Configurar handlers de colaboração WebSocket
+setupCollaborationHandlers(io);
+
 server.listen(PORT as number, HOST as string, async () => {
   await connectDatabase();
   
@@ -138,7 +142,7 @@ server.listen(PORT as number, HOST as string, async () => {
       logger.info(`   - http://${ip}:${PORT}`);
     });
   }
-  logger.info(`📡 Socket.IO configurado`);
+  logger.info(`📡 Socket.IO configurado com colaboração em tempo real`);
 });
 
 export { app, server, io };

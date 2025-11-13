@@ -11,6 +11,7 @@ import ExportModal from '../components/ExportModal';
 import CollaboratorsPanel from '../components/CollaboratorsPanel';
 import OnlineUsers from '../components/OnlineUsers';
 import UserCursors from '../components/UserCursors';
+import CollaborativeCursor from '../components/CollaborativeCursor';
 import { ToastContainer } from '../components/Toast';
 import './StudioPage.css';
 
@@ -19,15 +20,22 @@ const StudioPage = () => {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
   const {
+    isConnected,
     onlineUsers,
     lockedTracks,
     joinProject,
     leaveProject,
     updateCursor,
+    updateMousePosition,
     requestLock,
     releaseLock,
     isTrackLocked,
-    getTrackLocker
+    getTrackLocker,
+    notifyTrackAdded,
+    notifyTrackUpdated,
+    notifyTrackDeleted,
+    on,
+    off
   } = useCollaboration();
   
   const [tracks, setTracks] = useState([]);
@@ -52,6 +60,8 @@ const StudioPage = () => {
   const loadedProjectIdRef = useRef(null);
   const toastShownRef = useRef(false);
   const loadingCancelledRef = useRef(false);
+  const studioContentRef = useRef(null);
+  const mouseThrottleRef = useRef(null);
 
   useEffect(() => {
     if (tracks.length === 0) {
@@ -164,6 +174,27 @@ const StudioPage = () => {
               setSelectedTrack(newTrack);
             }
             
+            // Notificar outros usuários sobre a nova track
+            if (currentProjectId) {
+              console.log('Notificando track adicionada:', newTrack.name, 'currentProjectId:', currentProjectId);
+              // Não enviar o arquivo/url (muito grande para WebSocket)
+              const trackForSync = {
+                id: newTrack.id,
+                name: newTrack.name,
+                duration: newTrack.duration,
+                startTime: newTrack.startTime,
+                volume: newTrack.volume,
+                pan: newTrack.pan,
+                solo: newTrack.solo,
+                mute: newTrack.mute,
+                color: newTrack.color,
+                // url e file são muito grandes para enviar via WebSocket
+                // Outros usuários verão a track quando o projeto for salvo
+                isTemporary: true
+              };
+              notifyTrackAdded(trackForSync);
+            }
+            
             showToast('Áudio carregado com sucesso! Lembre-se de salvar o projeto.', 'success');
             
             URL.revokeObjectURL(tempUrl);
@@ -195,6 +226,24 @@ const StudioPage = () => {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
+  // Gerar cor única baseada no ID do usuário (consistente entre sessões)
+  const getUserColor = (userId) => {
+    const colors = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
+      '#FFEAA7', '#A29BFE', '#FD79A8', '#74B9FF',
+      '#55EFC4', '#FF7675', '#FDCB6E', '#E17055',
+      '#D63031', '#00B894', '#00CEC9', '#0984E3'
+    ];
+    
+    // Usar hash simples do userId para escolher cor consistente
+    let hash = 0;
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    return colors[Math.abs(hash) % colors.length];
+  };
+
   const handleTrackSelect = (track) => {
     setSelectedTrack(track);
   };
@@ -216,18 +265,33 @@ const StudioPage = () => {
       
       return updatedTracks;
     });
-  }, [selectedTrack]);
+    
+    // Notificar outros usuários sobre a deleção
+    if (currentProjectId) {
+      notifyTrackDeleted(trackId);
+    }
+  }, [selectedTrack, currentProjectId, notifyTrackDeleted]);
+
+  // Ref para debounce de notificações
+  const notificationTimerRef = useRef(null);
+  const lockTimerRef = useRef(null);
 
   const handleTrackUpdate = async (trackId, updates) => {
-    // Verificar se a track está bloqueada por outro usuário
-    if (isTrackLocked(trackId) && editingTrackId !== trackId) {
+    console.log('handleTrackUpdate CHAMADO - trackId:', trackId, 'updates:', updates, 'currentProjectId:', currentProjectId);
+    
+    // Mudanças de posição (startTime) não precisam de lock imediato
+    const isPositionChange = updates.startTime !== undefined && Object.keys(updates).length === 1;
+    const isMinorChange = updates.selectedRegion !== undefined || isPositionChange;
+
+    // Verificar se a track está bloqueada por outro usuário (apenas para mudanças importantes)
+    if (!isMinorChange && isTrackLocked(trackId) && editingTrackId !== trackId) {
       const locker = getTrackLocker(trackId);
       showToast(`Esta track está sendo editada por ${locker?.userName}`, 'warning');
       return;
     }
 
-    // Se não estamos editando ainda, solicitar bloqueio
-    if (!editingTrackId || editingTrackId !== trackId) {
+    // Solicitar bloqueio apenas para mudanças importantes (não para posição ou seleção de região)
+    if (!isMinorChange && (!editingTrackId || editingTrackId !== trackId)) {
       try {
         await requestLock(trackId);
         setEditingTrackId(trackId);
@@ -238,19 +302,44 @@ const StudioPage = () => {
       }
     }
 
+    // Atualizar estado local imediatamente
     setTracks(prevTracks => 
       prevTracks.map(track => 
         track.id === trackId ? { ...track, ...updates } : track
       )
     );
 
-    // Liberar bloqueio após 3 segundos de inatividade
-    setTimeout(() => {
-      if (editingTrackId === trackId) {
-        releaseLock(trackId);
-        setEditingTrackId(null);
+    // Notificar outros usuários com debounce para mudanças de posição
+    if (currentProjectId && !updates.selectedRegion) {
+      console.log('Notificando atualização de track - currentProjectId:', currentProjectId, 'trackId:', trackId, 'updates:', updates);
+      if (isPositionChange) {
+        // Debounce para mudanças de posição (evitar spam durante drag)
+        if (notificationTimerRef.current) {
+          clearTimeout(notificationTimerRef.current);
+        }
+        notificationTimerRef.current = setTimeout(() => {
+          notifyTrackUpdated(trackId, updates);
+        }, 150);
+      } else {
+        // Notificação imediata para outras mudanças
+        notifyTrackUpdated(trackId, updates);
       }
-    }, 3000);
+    } else {
+      console.log('Notificação NÃO enviada - currentProjectId:', currentProjectId, 'updates.selectedRegion:', updates.selectedRegion);
+    }
+
+    // Liberar bloqueio após 3 segundos de inatividade (apenas para mudanças importantes)
+    if (!isMinorChange) {
+      if (lockTimerRef.current) {
+        clearTimeout(lockTimerRef.current);
+      }
+      lockTimerRef.current = setTimeout(() => {
+        if (editingTrackId === trackId) {
+          releaseLock(trackId);
+          setEditingTrackId(null);
+        }
+      }, 3000);
+    }
   };
 
   const handlePlayPause = useCallback(() => {
@@ -434,15 +523,26 @@ const StudioPage = () => {
 
   // Entrar/sair do projeto via WebSocket para colaboração
   useEffect(() => {
+    console.log('StudioPage useEffect [currentProjectId, user] - currentProjectId:', currentProjectId, 'user:', user?.name);
     if (currentProjectId && user) {
+      console.log('StudioPage: Chamando joinProject com:', currentProjectId);
       joinProject(currentProjectId);
       
       return () => {
+        console.log('StudioPage: Cleanup - chamando leaveProject');
         leaveProject(currentProjectId);
         
         // Liberar bloqueio se estiver editando
         if (editingTrackId) {
           releaseLock(editingTrackId);
+        }
+        
+        // Limpar timers pendentes
+        if (notificationTimerRef.current) {
+          clearTimeout(notificationTimerRef.current);
+        }
+        if (lockTimerRef.current) {
+          clearTimeout(lockTimerRef.current);
         }
       };
     }
@@ -458,6 +558,144 @@ const StudioPage = () => {
       return () => clearTimeout(debounceTimer);
     }
   }, [currentTime, currentProjectId, isPlaying, updateCursor]);
+
+  // Trackear movimento do mouse para cursor colaborativo
+  useEffect(() => {
+    if (!currentProjectId || !isConnected || !studioContentRef.current) return;
+
+    const handleMouseMove = (e) => {
+      const container = studioContentRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+      // Throttle: enviar no máximo a cada 50ms
+      if (mouseThrottleRef.current) {
+        clearTimeout(mouseThrottleRef.current);
+      }
+
+      mouseThrottleRef.current = setTimeout(() => {
+        if (x >= 0 && x <= 100 && y >= 0 && y <= 100) {
+          updateMousePosition({ x, y });
+        }
+      }, 50);
+    };
+
+    const container = studioContentRef.current;
+    container.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      container.removeEventListener('mousemove', handleMouseMove);
+      if (mouseThrottleRef.current) {
+        clearTimeout(mouseThrottleRef.current);
+      }
+    };
+  }, [currentProjectId, isConnected, updateMousePosition]);
+
+  // Escutar eventos de sincronização de tracks
+  useEffect(() => {
+    console.log('StudioPage: Registrando handlers de sincronização. currentProjectId:', currentProjectId, 'isConnected:', isConnected);
+    if (!currentProjectId || !isConnected) {
+      console.log('StudioPage: Não registrando handlers - aguardando conexão');
+      return;
+    }
+
+    // Handler para quando uma track é adicionada por outro usuário
+    const handleTrackAdded = (data) => {
+      console.log('Track adicionada por outro usuário:', data);
+      const { track, userName } = data;
+      
+      // Verificar se a track já existe (evitar duplicação)
+      setTracks(prevTracks => {
+        const exists = prevTracks.some(t => t.id === track.id);
+        if (exists) {
+          console.log('Track já existe, ignorando');
+          return prevTracks;
+        }
+        
+        // Se for temporária (não salva ainda), criar placeholder visual
+        const trackToAdd = track.isTemporary ? {
+          ...track,
+          url: null, // Sem áudio até salvar
+          file: null,
+          isTemporary: true,
+          isPlaceholder: true // Flag para renderizar diferente
+        } : track;
+        
+        showToast(`${userName} adicionou "${track.name}". Aguarde ${userName} salvar o projeto para ouvir.`, 'info', 5000);
+        return [...prevTracks, trackToAdd];
+      });
+    };
+
+    // Handler para quando uma track é atualizada por outro usuário
+    const handleTrackUpdated = (data) => {
+      console.log('Track atualizada por outro usuário:', data);
+      const { trackId, updates, userName } = data;
+      
+      setTracks(prevTracks => {
+        const updatedTracks = prevTracks.map(track => 
+          track.id === trackId ? { ...track, ...updates } : track
+        );
+        
+        // Recalcular duração se a posição mudou
+        if (updates.startTime !== undefined && updatedTracks.length > 0) {
+          const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
+          setDuration(maxDur);
+        }
+        
+        // Mostrar toast apenas para mudanças significativas
+        // Usar prevTracks para evitar problemas de closure
+        if (updates.name) {
+          showToast(`${userName} renomeou uma faixa`, 'info', 2000);
+        } else if (updates.startTime !== undefined) {
+          const track = prevTracks.find(t => t.id === trackId);
+          if (track) {
+            showToast(`${userName} moveu "${track.name}"`, 'info', 1500);
+          }
+        } else if (updates.volume !== undefined || updates.pan !== undefined) {
+          // Não mostrar toast para mudanças de volume/pan
+        } else {
+          showToast(`${userName} editou uma faixa`, 'info', 2000);
+        }
+        
+        return updatedTracks;
+      });
+    };
+
+    // Handler para quando uma track é deletada por outro usuário
+    const handleTrackDeleted = (data) => {
+      console.log('Track deletada por outro usuário:', data);
+      const { trackId, userName } = data;
+      
+      setTracks(prevTracks => {
+        const track = prevTracks.find(t => t.id === trackId);
+        if (track) {
+          showToast(`${userName} removeu a faixa "${track.name}"`, 'warning');
+        }
+        return prevTracks.filter(t => t.id !== trackId);
+      });
+      
+      // Se a track deletada era a selecionada, limpar seleção
+      setSelectedTrack(prev => prev?.id === trackId ? null : prev);
+    };
+
+    // Registrar listeners
+    console.log('StudioPage: Registrando listeners para track-added, track-updated, track-deleted');
+    on('track-added', handleTrackAdded);
+    on('track-updated', handleTrackUpdated);
+    on('track-deleted', handleTrackDeleted);
+    console.log('StudioPage: Listeners registrados com sucesso');
+
+    // Cleanup: remover listeners
+    return () => {
+      console.log('StudioPage: Removendo listeners de sincronização');
+      off('track-added', handleTrackAdded);
+      off('track-updated', handleTrackUpdated);
+      off('track-deleted', handleTrackDeleted);
+    };
+  }, [currentProjectId, isConnected, on, off, showToast]);
 
   const processAudioSegment = async (track) => {
     try {
@@ -1131,7 +1369,18 @@ const StudioPage = () => {
         </div>
       </div>
 
-      <div className="studio-content audacity-layout">
+      <div className="studio-content audacity-layout" ref={studioContentRef} style={{ position: 'relative' }}>
+        {/* Cursores colaborativos */}
+        {currentProjectId && onlineUsers
+          .filter(u => u.userId !== user?.id && u.mousePosition)
+          .map(u => (
+            <CollaborativeCursor
+              key={u.socketId}
+              user={{ ...u, cursorColor: getUserColor(u.userId) }}
+              containerRef={studioContentRef}
+            />
+          ))}
+
         <aside className="studio-sidebar">
           <div className="sidebar-section">
             <h3>Upload de Áudio</h3>

@@ -72,13 +72,22 @@ class CollaborationService {
     this.currentProjectId = null;
   }
 
-  // Atualizar posição do cursor
+  // Atualizar posição do cursor (tempo de playback)
   updateCursorPosition(projectId, cursorPosition) {
     if (!this.socket || !this.socket.connected) {
       return;
     }
 
     this.socket.emit('cursor-move', { projectId, cursorPosition });
+  }
+
+  // Atualizar posição do mouse
+  updateMousePosition(projectId, mousePosition) {
+    if (!this.socket || !this.socket.connected) {
+      return;
+    }
+
+    this.socket.emit('mouse-move', { projectId, mousePosition });
   }
 
   // Solicitar bloqueio para editar uma track
@@ -130,6 +139,38 @@ class CollaborationService {
     this.socket.emit('project-update', { projectId, changes });
   }
 
+  // Notificar adição de track
+  notifyTrackAdded(projectId, track) {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('Socket não conectado ao notificar track adicionada');
+      return;
+    }
+
+    console.log('CollaborationService: Enviando track-added:', { projectId, trackName: track.name });
+    this.socket.emit('track-added', { projectId, track });
+  }
+
+  // Notificar atualização de track
+  notifyTrackUpdated(projectId, trackId, updates) {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('Socket não conectado ao notificar track atualizada');
+      return;
+    }
+
+    console.log('Enviando notificação de track atualizada:', { projectId, trackId, updates });
+    this.socket.emit('track-updated', { projectId, trackId, updates });
+  }
+
+  // Notificar deleção de track
+  notifyTrackDeleted(projectId, trackId) {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('Socket não conectado ao notificar track deletada');
+      return;
+    }
+
+    this.socket.emit('track-deleted', { projectId, trackId });
+  }
+
   // Registrar evento
   on(event, handler) {
     if (!this.socket) {
@@ -137,13 +178,21 @@ class CollaborationService {
       return;
     }
 
-    this.socket.on(event, handler);
+    console.log('CollaborationService: Registrando handler para evento:', event);
     
-    // Armazenar handler para possível remoção posterior
+    // Criar um wrapper que loga quando o evento é recebido
+    const wrappedHandler = (data) => {
+      console.log(`CollaborationService: Evento '${event}' recebido:`, data);
+      handler(data);
+    };
+    
+    this.socket.on(event, wrappedHandler);
+    
+    // Armazenar o handler original para possível remoção posterior
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, []);
     }
-    this.eventHandlers.get(event).push(handler);
+    this.eventHandlers.get(event).push({ original: handler, wrapped: wrappedHandler });
   }
 
   // Remover evento
@@ -152,14 +201,22 @@ class CollaborationService {
       return;
     }
 
-    this.socket.off(event, handler);
+    console.log('CollaborationService: Removendo handler para evento:', event);
 
-    // Remover do registro
+    // Remover do registro e do socket
     if (this.eventHandlers.has(event)) {
       const handlers = this.eventHandlers.get(event);
-      const index = handlers.indexOf(handler);
-      if (index > -1) {
-        handlers.splice(index, 1);
+      const handlerObj = handlers.find(h => h.original === handler);
+      
+      if (handlerObj) {
+        // Remover o handler wrapped do socket
+        this.socket.off(event, handlerObj.wrapped);
+        
+        // Remover do registro
+        const index = handlers.indexOf(handlerObj);
+        if (index > -1) {
+          handlers.splice(index, 1);
+        }
       }
     }
   }
@@ -170,9 +227,11 @@ class CollaborationService {
       return;
     }
 
+    console.log('CollaborationService: Removendo todos os listeners');
+
     this.eventHandlers.forEach((handlers, event) => {
-      handlers.forEach(handler => {
-        this.socket.off(event, handler);
+      handlers.forEach(handlerObj => {
+        this.socket.off(event, handlerObj.wrapped);
       });
     });
 

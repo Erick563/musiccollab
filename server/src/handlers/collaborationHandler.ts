@@ -220,7 +220,7 @@ export const setupCollaborationHandlers = (io: Server) => {
       handleLeaveProject(socket, projectId);
     });
 
-    // Atualizar posição do cursor
+    // Atualizar posição do cursor (tempo de playback)
     socket.on('cursor-move', (data: { projectId: string; cursorPosition: number }) => {
       const { projectId, cursorPosition } = data;
       const room = projectRooms.get(projectId);
@@ -238,6 +238,18 @@ export const setupCollaborationHandlers = (io: Server) => {
           });
         }
       }
+    });
+
+    // Atualizar posição do mouse
+    socket.on('mouse-move', (data: { projectId: string; mousePosition: { x: number; y: number } }) => {
+      const { projectId, mousePosition } = data;
+      
+      // Propagar para outros usuários no projeto
+      socket.to(projectId).emit('mouse-updated', {
+        userId: socket.user?.id,
+        socketId: socket.id,
+        mousePosition
+      });
     });
 
     // Solicitar bloqueio para editar uma track
@@ -307,6 +319,65 @@ export const setupCollaborationHandlers = (io: Server) => {
         userId: socket.user?.id,
         userName: socket.user?.name,
         changes
+      });
+    });
+
+    // Sincronizar adição de track
+    socket.on('track-added', (data: { projectId: string; track: any }) => {
+      const { projectId, track } = data;
+      
+      console.log(`[track-added] Recebido de ${socket.user?.name} (${socket.id}) - track: ${track.name}, projectId: ${projectId}`);
+      console.log(`[track-added] Socket está nas salas:`, Array.from(socket.rooms));
+      
+      // Propagar para outros usuários no projeto
+      socket.to(projectId).emit('track-added', {
+        userId: socket.user?.id,
+        userName: socket.user?.name,
+        track
+      });
+      
+      console.log(`[track-added] Evento propagado para sala ${projectId}`);
+      
+      // Verificar quantos sockets estão na sala
+      const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
+      console.log(`[track-added] Sockets na sala ${projectId}:`, socketsInRoom ? socketsInRoom.size : 0);
+    });
+
+    // Sincronizar atualização de track
+    socket.on('track-updated', (data: { projectId: string; trackId: string | number; updates: any }) => {
+      const { projectId, trackId, updates } = data;
+      
+      console.log(`[track-updated] Recebido de ${socket.user?.name} (${socket.id}) - projectId: ${projectId}, trackId: ${trackId}`);
+      console.log(`[track-updated] Socket está nas salas:`, Array.from(socket.rooms));
+      console.log(`[track-updated] Propagando para sala ${projectId}...`);
+      
+      // Propagar para outros usuários no projeto
+      const emittedData = {
+        userId: socket.user?.id,
+        userName: socket.user?.name,
+        trackId,
+        updates
+      };
+      
+      socket.to(projectId).emit('track-updated', emittedData);
+      console.log(`[track-updated] Evento propagado:`, emittedData);
+      
+      // Verificar quantos sockets estão na sala
+      const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
+      console.log(`[track-updated] Sockets na sala ${projectId}:`, socketsInRoom ? socketsInRoom.size : 0);
+    });
+
+    // Sincronizar deleção de track
+    socket.on('track-deleted', (data: { projectId: string; trackId: string | number }) => {
+      const { projectId, trackId } = data;
+      
+      console.log(`Track ${trackId} deletada por ${socket.user?.name}`);
+      
+      // Propagar para outros usuários no projeto
+      socket.to(projectId).emit('track-deleted', {
+        userId: socket.user?.id,
+        userName: socket.user?.name,
+        trackId
       });
     });
 

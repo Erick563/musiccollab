@@ -19,6 +19,19 @@ export const CollaborationProvider = ({ children }) => {
   const [lockedTracks, setLockedTracks] = useState([]);
   const [currentProjectId, setCurrentProjectId] = useState(null);
   const socketRef = useRef(null);
+  const currentProjectIdRef = useRef(null);
+  const isConnectedRef = useRef(false);
+  
+  // Manter refs sincronizados
+  useEffect(() => {
+    currentProjectIdRef.current = currentProjectId;
+    console.log('CollaborationContext: currentProjectId atualizado para:', currentProjectId);
+  }, [currentProjectId]);
+  
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+    console.log('CollaborationContext: isConnected atualizado para:', isConnected);
+  }, [isConnected]);
 
   // Conectar ao WebSocket quando o usuário estiver autenticado
   useEffect(() => {
@@ -65,6 +78,14 @@ export const CollaborationProvider = ({ children }) => {
           ));
         });
 
+        collaborationService.on('mouse-updated', ({ userId, socketId, mousePosition }) => {
+          setOnlineUsers(prev => prev.map(u => 
+            u.socketId === socketId 
+              ? { ...u, mousePosition } 
+              : u
+          ));
+        });
+
         // Eventos de bloqueio de tracks
         collaborationService.on('locked-tracks', (tracks) => {
           setLockedTracks(tracks);
@@ -91,6 +112,10 @@ export const CollaborationProvider = ({ children }) => {
               : u
           ));
         });
+
+        // Eventos de sincronização de tracks (track-added, track-updated, track-deleted)
+        // são registrados diretamente pelos componentes que precisam reagir às mudanças
+        // (ex: StudioPage), então não precisamos registrá-los aqui
       }
     }
 
@@ -102,19 +127,33 @@ export const CollaborationProvider = ({ children }) => {
     };
   }, [user]);
 
+  // Quando o socket conectar/reconectar e houver um projeto ativo, entrar nele
+  useEffect(() => {
+    if (isConnected && currentProjectId) {
+      console.log('Socket conectado, entrando no projeto:', currentProjectId);
+      collaborationService.joinProject(currentProjectId);
+    }
+  }, [isConnected, currentProjectId]);
+
   // Entrar em um projeto
   const joinProject = useCallback((projectId) => {
-    if (!isConnected) {
-      console.warn('Socket não conectado');
-      return;
-    }
-
+    console.log('joinProject chamado - projectId:', projectId, 'isConnected:', isConnected);
+    
+    // Setar o currentProjectId imediatamente, mesmo se o socket não estiver conectado ainda
     if (currentProjectId && currentProjectId !== projectId) {
-      collaborationService.leaveProject(currentProjectId);
+      if (isConnected) {
+        collaborationService.leaveProject(currentProjectId);
+      }
     }
 
-    collaborationService.joinProject(projectId);
     setCurrentProjectId(projectId);
+    
+    // Se o socket estiver conectado, entrar no projeto imediatamente
+    if (isConnected) {
+      collaborationService.joinProject(projectId);
+    } else {
+      console.warn('Socket não conectado ao tentar entrar no projeto. O projeto será conectado quando o socket estiver pronto.');
+    }
   }, [isConnected, currentProjectId]);
 
   // Sair de um projeto
@@ -125,10 +164,17 @@ export const CollaborationProvider = ({ children }) => {
     setLockedTracks([]);
   }, []);
 
-  // Atualizar posição do cursor
+  // Atualizar posição do cursor (tempo de playback)
   const updateCursor = useCallback((cursorPosition) => {
     if (currentProjectId && isConnected) {
       collaborationService.updateCursorPosition(currentProjectId, cursorPosition);
+    }
+  }, [currentProjectId, isConnected]);
+
+  // Atualizar posição do mouse
+  const updateMousePosition = useCallback((mousePosition) => {
+    if (currentProjectId && isConnected) {
+      collaborationService.updateMousePosition(currentProjectId, mousePosition);
     }
   }, [currentProjectId, isConnected]);
 
@@ -166,6 +212,43 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, [currentProjectId, isConnected]);
 
+  // Notificar adição de track
+  const notifyTrackAdded = useCallback((track) => {
+    const projId = currentProjectIdRef.current;
+    const connected = isConnectedRef.current;
+    console.log('CollaborationContext.notifyTrackAdded - projId:', projId, 'connected:', connected, 'track:', track.name);
+    if (projId && connected) {
+      console.log('Enviando track-added para o servidor...');
+      collaborationService.notifyTrackAdded(projId, track);
+    } else {
+      console.warn('Não foi possível notificar track adicionada - projId:', projId, 'connected:', connected);
+    }
+  }, []);
+
+  // Notificar atualização de track
+  const notifyTrackUpdated = useCallback((trackId, updates) => {
+    const projId = currentProjectIdRef.current;
+    const connected = isConnectedRef.current;
+    console.log('CollaborationContext.notifyTrackUpdated - projId:', projId, 'connected:', connected, 'trackId:', trackId, 'updates:', updates);
+    if (projId && connected) {
+      collaborationService.notifyTrackUpdated(projId, trackId, updates);
+    } else {
+      console.warn('Não foi possível notificar track atualizada - projId:', projId, 'connected:', connected);
+    }
+  }, []);
+
+  // Notificar deleção de track
+  const notifyTrackDeleted = useCallback((trackId) => {
+    const projId = currentProjectIdRef.current;
+    const connected = isConnectedRef.current;
+    console.log('CollaborationContext.notifyTrackDeleted - projId:', projId, 'connected:', connected, 'trackId:', trackId);
+    if (projId && connected) {
+      collaborationService.notifyTrackDeleted(projId, trackId);
+    } else {
+      console.warn('Não foi possível notificar track deletada - projId:', projId, 'connected:', connected);
+    }
+  }, []);
+
   // Gerenciar colaboradores (API REST)
   const getCollaborators = useCallback(async (projectId) => {
     return collaborationService.getCollaborators(projectId);
@@ -200,11 +283,15 @@ export const CollaborationProvider = ({ children }) => {
     joinProject,
     leaveProject,
     updateCursor,
+    updateMousePosition,
     requestLock,
     releaseLock,
     isTrackLocked,
     getTrackLocker,
     sendUpdate,
+    notifyTrackAdded,
+    notifyTrackUpdated,
+    notifyTrackDeleted,
     getCollaborators,
     addCollaborator,
     updateCollaboratorRole,

@@ -16,7 +16,8 @@ const TimelineTrack = ({
   onUpdate,
   onDelete,
   onSeek,
-  onCopyRegion
+  onCopyRegion,
+  isReadOnly = false
 }) => {
   const audioRef = useRef(null);
   const trackRef = useRef(null);
@@ -245,9 +246,10 @@ const TimelineTrack = ({
             className={`track-btn solo-btn ${track.solo ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              toggleSolo();
+              if (!isReadOnly) toggleSolo();
             }}
-            title="Solo"
+            title={isReadOnly ? "Somente visualização" : "Solo"}
+            disabled={isReadOnly}
           >
             S
           </button>
@@ -255,15 +257,18 @@ const TimelineTrack = ({
             className={`track-btn mute-btn ${track.mute ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              toggleMute();
+              if (!isReadOnly) toggleMute();
             }}
-            title="Mute"
+            title={isReadOnly ? "Somente visualização" : "Mute"}
+            disabled={isReadOnly}
           >
             M
           </button>
-          <div onClick={(e) => e.stopPropagation()}>
-            <EffectsPanel track={track} onUpdateEffects={handleUpdateEffects} />
-          </div>
+          {!isReadOnly && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <EffectsPanel track={track} onUpdateEffects={handleUpdateEffects} />
+            </div>
+          )}
         </div>
 
         <div className="track-volume-control">
@@ -276,6 +281,8 @@ const TimelineTrack = ({
             onChange={handleVolumeChange}
             onClick={(e) => e.stopPropagation()}
             className="volume-slider-mini"
+            disabled={isReadOnly}
+            title={isReadOnly ? "Somente visualização" : ""}
           />
           <span className="volume-value-mini">{track.volume}</span>
         </div>
@@ -290,6 +297,8 @@ const TimelineTrack = ({
             onChange={handlePanChange}
             onClick={(e) => e.stopPropagation()}
             className="pan-slider-mini"
+            disabled={isReadOnly}
+            title={isReadOnly ? "Somente visualização" : ""}
           />
           <span className="pan-value-mini">
             {track.pan === 0 ? 'C' : track.pan < 0 ? `L${Math.abs(track.pan)}` : `R${track.pan}`}
@@ -307,20 +316,24 @@ const TimelineTrack = ({
             onChange={handleStartTimeChange}
             onClick={(e) => e.stopPropagation()}
             className="starttime-input"
+            disabled={isReadOnly}
+            title={isReadOnly ? "Somente visualização" : ""}
           />
           <span className="time-unit">s</span>
         </div>
 
-        <button 
-          className="delete-track-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(track.id);
-          }}
-          title="Remover Faixa"
-        >
-          🗑️
-        </button>
+        {!isReadOnly && (
+          <button 
+            className="delete-track-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(track.id);
+            }}
+            title="Remover Faixa"
+          >
+            🗑️
+          </button>
+        )}
         </div>
 
         <div className="track-waveform-row">
@@ -345,8 +358,9 @@ const TimelineTrack = ({
           >
         <div 
           className="track-drag-handle" 
-          title="Arraste para mover a faixa no tempo"
-          onMouseDown={handleDragHandleMouseDown}
+          title={isReadOnly ? "Somente visualização" : "Arraste para mover a faixa no tempo"}
+          onMouseDown={isReadOnly ? undefined : handleDragHandleMouseDown}
+          style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.5 } : {}}
         >
           ⋮⋮
         </div>
@@ -365,6 +379,7 @@ const TimelineTrack = ({
           onRegionSelect={handleRegionSelect}
           selectedRegion={selectedRegion}
           onSeek={handleRegionSeek}
+          isReadOnly={isReadOnly}
         />
         
         {maxDuration > 0 && trackDuration > 0 && currentTime >= trackStartTime && currentTime <= (trackStartTime + trackDuration) && (

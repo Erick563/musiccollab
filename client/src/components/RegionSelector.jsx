@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './RegionSelector.css';
 
-const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) => {
+const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek, isReadOnly = false }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
   const [dragEnd, setDragEnd] = useState(null);
@@ -18,6 +18,11 @@ const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) =>
   }, [selectedRegion]);
 
   const handleMouseDown = (e) => {
+    // Se estiver em modo somente leitura, não fazer nada
+    if (isReadOnly) {
+      return;
+    }
+
     if (e.shiftKey) {
       setDragStart(null);
       setDragEnd(null);
@@ -117,7 +122,8 @@ const RegionSelector = ({ duration, onRegionSelect, selectedRegion, onSeek }) =>
       ref={containerRef}
       className="region-selector"
       onMouseDown={handleMouseDown}
-      title="Clique para mover cursor. Arraste para selecionar. Shift+Click para limpar."
+      title={isReadOnly ? "Modo somente visualização" : "Clique para mover cursor. Arraste para selecionar. Shift+Click para limpar."}
+      style={isReadOnly ? { cursor: 'not-allowed', opacity: 0.7 } : {}}
     >
       {(dragStart !== null && dragEnd !== null) && (
         <div className="selected-region" style={getRegionStyle()}>

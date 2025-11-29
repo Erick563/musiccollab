@@ -54,6 +54,7 @@ const StudioPage = () => {
   const [projectOwner, setProjectOwner] = useState(null);
   const [editingTrackId, setEditingTrackId] = useState(null);
   const [isContainerReady, setIsContainerReady] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
   const playbackIntervalRef = useRef(null);
   const selectedTrackRef = useRef(null);
   const loadedProjectIdRef = useRef(null);
@@ -155,6 +156,12 @@ const StudioPage = () => {
   }, []);
 
   const handleFileUpload = async (file) => {
+    // Bloquear upload para VIEWER
+    if (currentUserRole === 'VIEWER') {
+      showToast('Você não tem permissão para adicionar faixas. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
     try {
       showToast('Carregando áudio...', 'info');
 
@@ -348,6 +355,12 @@ const StudioPage = () => {
   };
 
   const handleTrackDelete = useCallback((trackId) => {
+    // Bloquear deleção para VIEWER
+    if (currentUserRole === 'VIEWER') {
+      showToast('Você não tem permissão para deletar faixas. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
     setTracks(prevTracks => {
       const updatedTracks = prevTracks.filter(t => t.id !== trackId);
 
@@ -376,6 +389,12 @@ const StudioPage = () => {
   const lockTimerRef = useRef(null);
 
   const handleTrackUpdate = async (trackId, updates) => {
+    // Bloquear modificações para VIEWER
+    if (currentUserRole === 'VIEWER') {
+      showToast('Você não tem permissão para modificar faixas. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
     // Mudanças menores que não precisam de lock
     const isPositionChange = updates.startTime !== undefined && Object.keys(updates).length === 1;
     const isMuteChange = updates.mute !== undefined && Object.keys(updates).length === 1;
@@ -500,6 +519,7 @@ const StudioPage = () => {
         setCurrentProjectId(project.id);
         setProjectName(project.title || 'Novo Projeto');
         setProjectOwner(project.owner);
+        setCurrentUserRole(project.currentUserRole || 'VIEWER');
 
         const dbTracks = await trackService.getProjectTracks(project.id);
 
@@ -1081,6 +1101,12 @@ const StudioPage = () => {
   };
 
   const handleSave = useCallback(async () => {
+    // Bloquear salvamento para VIEWER
+    if (currentUserRole === 'VIEWER') {
+      showToast('Você não tem permissão para salvar o projeto. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
     if (!user) {
       showToast('Você precisa estar logado para salvar projetos', 'error');
       return;
@@ -1280,6 +1306,7 @@ const StudioPage = () => {
   }, []);
 
   const handleCopyRegion = useCallback((trackId, region) => {
+    // Permitir cópia mesmo para VIEWER (não modifica nada)
     const track = tracks.find(t => t.id === trackId);
     if (!track || !region) return;
 
@@ -1307,6 +1334,12 @@ const StudioPage = () => {
   }, [tracks, showToast, mapTimelineToAudioTime]);
 
   const handleDeleteRegion = useCallback((trackId, region) => {
+    // Bloquear deleção de região para VIEWER
+    if (currentUserRole === 'VIEWER') {
+      showToast('Você não tem permissão para deletar regiões. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
     const track = tracks.find(t => t.id === trackId);
     if (!track || !region) return;
 
@@ -1349,6 +1382,12 @@ const StudioPage = () => {
   }, [tracks, showToast, mapTimelineToAudioTime]);
 
   const handleCutRegion = useCallback((trackId, region) => {
+    // Bloquear corte de região para VIEWER
+    if (currentUserRole === 'VIEWER') {
+      showToast('Você não tem permissão para recortar regiões. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
     const track = tracks.find(t => t.id === trackId);
     if (!track || !region) return;
 
@@ -1378,6 +1417,12 @@ const StudioPage = () => {
   }, [tracks, showToast, handleDeleteRegion, mapTimelineToAudioTime]);
 
   const handlePaste = useCallback(() => {
+    // Bloquear colar para VIEWER
+    if (currentUserRole === 'VIEWER') {
+      showToast('Você não tem permissão para colar regiões. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
     if (!clipboard) {
       showToast('Nenhuma região copiada. Copie uma região primeiro.', 'warning');
       return;
@@ -1534,7 +1579,22 @@ const StudioPage = () => {
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
             placeholder="Nome do Projeto"
+            disabled={currentUserRole === 'VIEWER'}
+            title={currentUserRole === 'VIEWER' ? 'Você não pode editar o nome do projeto (somente visualização)' : ''}
           />
+          {currentUserRole === 'VIEWER' && (
+            <span style={{
+              backgroundColor: '#ff6b6b',
+              color: 'white',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              marginLeft: '10px'
+            }}>
+              👁️ MODO VISUALIZAÇÃO
+            </span>
+          )}
         </div>
         <div className="header-center">
           <div className="time-display">
@@ -1547,11 +1607,17 @@ const StudioPage = () => {
           <button
             className="header-btn"
             onClick={handleSave}
-            disabled={isSaving || isLoading}
+            disabled={isSaving || isLoading || currentUserRole === 'VIEWER'}
+            title={currentUserRole === 'VIEWER' ? 'Você não pode salvar (somente visualização)' : ''}
           >
             {isSaving ? '⏳ Salvando...' : '💾 Salvar'}
           </button>
-          <button className="header-btn" onClick={handleExport}>
+          <button 
+            className="header-btn" 
+            onClick={handleExport}
+            disabled={currentUserRole === 'VIEWER'}
+            title={currentUserRole === 'VIEWER' ? 'Você não pode exportar (somente visualização)' : ''}
+          >
             📤 Exportar
           </button>
           <div className="user-info">
@@ -1629,7 +1695,24 @@ const StudioPage = () => {
         <aside className="studio-sidebar">
           <div className="sidebar-section">
             <h3>Upload de Áudio</h3>
-            <AudioUploader onFileUpload={handleFileUpload} />
+            {currentUserRole === 'VIEWER' ? (
+              <div style={{
+                padding: '20px',
+                textAlign: 'center',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                border: '2px dashed #dee2e6'
+              }}>
+                <div style={{ fontSize: '24px', marginBottom: '10px' }}>👁️</div>
+                <div style={{ fontSize: '14px', color: '#666' }}>
+                  Modo Visualização
+                  <br />
+                  <small>Você não pode adicionar arquivos</small>
+                </div>
+              </div>
+            ) : (
+              <AudioUploader onFileUpload={handleFileUpload} />
+            )}
           </div>
 
           <div className="sidebar-section">
@@ -1678,31 +1761,47 @@ const StudioPage = () => {
                 <kbd>S</kbd>
                 <span>Stop</span>
               </div>
-              <div className="shortcut-item">
-                <kbd>Ctrl+C</kbd>
-                <span>Copiar Região</span>
-              </div>
-              <div className="shortcut-item">
-                <kbd>Ctrl+X</kbd>
-                <span>Recortar Região</span>
-              </div>
-              <div className="shortcut-item">
-                <kbd>Ctrl+V</kbd>
-                <span>Colar Segmento</span>
-              </div>
-              <div className="shortcut-item">
-                <kbd>Shift+Click</kbd>
-                <span>Limpar Região</span>
-              </div>
-              <div className="shortcut-item">
-                <kbd>Ctrl+S</kbd>
-                <span>Salvar</span>
-              </div>
-              <div className="shortcut-item">
-                <kbd>Del</kbd>
-                <span>Deletar Região/Faixa</span>
-              </div>
+              {currentUserRole !== 'VIEWER' && (
+                <>
+                  <div className="shortcut-item">
+                    <kbd>Ctrl+C</kbd>
+                    <span>Copiar Região</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <kbd>Ctrl+X</kbd>
+                    <span>Recortar Região</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <kbd>Ctrl+V</kbd>
+                    <span>Colar Segmento</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <kbd>Shift+Click</kbd>
+                    <span>Limpar Região</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <kbd>Ctrl+S</kbd>
+                    <span>Salvar</span>
+                  </div>
+                  <div className="shortcut-item">
+                    <kbd>Del</kbd>
+                    <span>Deletar Região/Faixa</span>
+                  </div>
+                </>
+              )}
             </div>
+            {currentUserRole === 'VIEWER' && (
+              <div style={{
+                marginTop: '10px',
+                padding: '10px',
+                backgroundColor: '#fff3cd',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#856404'
+              }}>
+                ℹ️ Modo somente visualização - Funções de edição desabilitadas
+              </div>
+            )}
           </div>
         </aside>
 
@@ -1749,6 +1848,7 @@ const StudioPage = () => {
                       onSeek={handleSeek}
                       onCopyRegion={handleCopyRegion}
                       onDeleteRegion={handleDeleteRegion}
+                      isReadOnly={currentUserRole === 'VIEWER'}
                     />
                   );
                 })}

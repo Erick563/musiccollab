@@ -55,6 +55,7 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Verificar se o usuário tem permissão para adicionar tracks (não pode ser VIEWER)
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,
@@ -63,18 +64,28 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
           {
             collaborators: {
               some: {
-                userId: req.user.id
+                userId: req.user.id,
+                role: {
+                  not: 'VIEWER'
+                }
               }
             }
           }
         ]
+      },
+      include: {
+        collaborators: {
+          where: {
+            userId: req.user.id
+          }
+        }
       }
     });
 
     if (!project) {
-      return res.status(404).json({
+      return res.status(403).json({
         success: false,
-        message: 'Projeto não encontrado ou você não tem permissão para adicionar tracks'
+        message: 'Projeto não encontrado ou você não tem permissão para adicionar tracks. Usuários com permissão de visualização não podem fazer modificações.'
       });
     }
 
@@ -383,7 +394,7 @@ export const updateTrack = async (req: AuthRequest, res: Response) => {
                 some: {
                   userId: req.user.id,
                   role: {
-                    in: ['OWNER', 'ADMIN']
+                    in: ['OWNER', 'ADMIN', 'COLLABORATOR']
                   }
                 }
               }
@@ -394,9 +405,9 @@ export const updateTrack = async (req: AuthRequest, res: Response) => {
     });
 
     if (!existingTrack) {
-      return res.status(404).json({
+      return res.status(403).json({
         success: false,
-        message: 'Track não encontrada ou você não tem permissão para editá-la'
+        message: 'Track não encontrada ou você não tem permissão para editá-la. Usuários com permissão de visualização não podem fazer modificações.'
       });
     }
 
@@ -456,7 +467,7 @@ export const deleteTrack = async (req: AuthRequest, res: Response) => {
                 some: {
                   userId: req.user.id,
                   role: {
-                    in: ['OWNER', 'ADMIN']
+                    in: ['OWNER', 'ADMIN', 'COLLABORATOR']
                   }
                 }
               }
@@ -467,9 +478,9 @@ export const deleteTrack = async (req: AuthRequest, res: Response) => {
     });
 
     if (!existingTrack) {
-      return res.status(404).json({
+      return res.status(403).json({
         success: false,
-        message: 'Track não encontrada ou você não tem permissão para deletá-la'
+        message: 'Track não encontrada ou você não tem permissão para deletá-la. Usuários com permissão de visualização não podem fazer modificações.'
       });
     }
 

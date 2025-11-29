@@ -146,6 +146,17 @@ export const getProject = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Determinar a role do usuário atual no projeto
+    let currentUserRole = 'VIEWER';
+    if (project.ownerId === req.user!.id) {
+      currentUserRole = 'OWNER';
+    } else {
+      const userCollaborator = project.collaborators.find(c => c.userId === req.user!.id);
+      if (userCollaborator) {
+        currentUserRole = userCollaborator.role;
+      }
+    }
+
     return res.json({
       success: true,
       project: {
@@ -154,8 +165,13 @@ export const getProject = async (req: AuthRequest, res: Response) => {
         status: project.status,
         state: project.state,
         owner: project.owner,
-        collaborators: project.collaborators.map(c => c.user),
+        collaborators: project.collaborators.map(c => ({
+          id: c.id,
+          role: c.role,
+          user: c.user
+        })),
         tracks: project.tracks,
+        currentUserRole: currentUserRole,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt
       }
@@ -268,7 +284,7 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
               some: {
                 userId: req.user.id,
                 role: {
-                  in: ['OWNER', 'ADMIN']
+                  in: ['OWNER', 'ADMIN', 'COLLABORATOR']
                 }
               }
             }
@@ -278,9 +294,9 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
     });
 
     if (!existingProject) {
-      return res.status(404).json({
+      return res.status(403).json({
         success: false,
-        message: 'Projeto não encontrado ou você não tem permissão para editá-lo'
+        message: 'Projeto não encontrado ou você não tem permissão para editá-lo. Usuários com permissão de visualização não podem fazer modificações.'
       });
     }
 

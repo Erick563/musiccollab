@@ -76,7 +76,7 @@ export const setupCollaborationHandlers = (io: Server) => {
       try {
         if (!socket.user) return;
 
-        // Verificar se o usuário tem permissão para acessar o projeto
+        // Verificar se o usuário tem permissão para acessar o projeto e obter sua role
         const project = await prisma.project.findFirst({
           where: {
             id: projectId,
@@ -90,6 +90,13 @@ export const setupCollaborationHandlers = (io: Server) => {
                 }
               }
             ]
+          },
+          include: {
+            collaborators: {
+              where: {
+                userId: socket.user.id
+              }
+            }
           }
         });
 
@@ -97,6 +104,11 @@ export const setupCollaborationHandlers = (io: Server) => {
           socket.emit('error', { message: 'Você não tem permissão para acessar este projeto' });
           return;
         }
+
+        // Armazenar a role do usuário no socket para verificações futuras
+        const userCollaborator = project.collaborators[0];
+        const userRole = project.ownerId === socket.user.id ? 'OWNER' : (userCollaborator?.role || 'VIEWER');
+        (socket as any).userRole = userRole;
 
         // Sair de qualquer sala anterior
         const previousRooms = Array.from(socket.rooms).filter(room => room !== socket.id);
@@ -274,6 +286,16 @@ export const setupCollaborationHandlers = (io: Server) => {
       
       if (!socket.user) return;
 
+      // VIEWER não pode solicitar bloqueio
+      const userRole = (socket as any).userRole;
+      if (userRole === 'VIEWER') {
+        socket.emit('track-lock-denied', {
+          trackId,
+          message: 'Usuários com permissão de visualização não podem editar tracks'
+        });
+        return;
+      }
+
       // Verificar se a track já está bloqueada
       const existingLock = trackLocks.get(lockKey);
       
@@ -328,6 +350,13 @@ export const setupCollaborationHandlers = (io: Server) => {
     socket.on('project-update', (data: { projectId: string; changes: any }) => {
       const { projectId, changes } = data;
       
+      // VIEWER não pode fazer mudanças no projeto
+      const userRole = (socket as any).userRole;
+      if (userRole === 'VIEWER') {
+        socket.emit('error', { message: 'Usuários com permissão de visualização não podem fazer modificações' });
+        return;
+      }
+      
       // Propagar mudanças para outros usuários
       socket.to(projectId).emit('project-changed', {
         userId: socket.user?.id,
@@ -340,6 +369,12 @@ export const setupCollaborationHandlers = (io: Server) => {
     socket.on('track-added', (data: { projectId: string; track: any }) => {
       const { projectId, track } = data;
       
+      // VIEWER não pode adicionar tracks
+      const userRole = (socket as any).userRole;
+      if (userRole === 'VIEWER') {
+        socket.emit('error', { message: 'Usuários com permissão de visualização não podem adicionar tracks' });
+        return;
+      }
       
       // Propagar para outros usuários no projeto
       socket.to(projectId).emit('track-added', {
@@ -357,6 +392,12 @@ export const setupCollaborationHandlers = (io: Server) => {
     socket.on('track-updated', (data: { projectId: string; trackId: string | number; updates: any }) => {
       const { projectId, trackId, updates } = data;
       
+      // VIEWER não pode atualizar tracks
+      const userRole = (socket as any).userRole;
+      if (userRole === 'VIEWER') {
+        socket.emit('error', { message: 'Usuários com permissão de visualização não podem modificar tracks' });
+        return;
+      }
       
       // Propagar para outros usuários no projeto
       const emittedData = {
@@ -376,6 +417,12 @@ export const setupCollaborationHandlers = (io: Server) => {
     socket.on('track-deleted', (data: { projectId: string; trackId: string | number }) => {
       const { projectId, trackId } = data;
       
+      // VIEWER não pode deletar tracks
+      const userRole = (socket as any).userRole;
+      if (userRole === 'VIEWER') {
+        socket.emit('error', { message: 'Usuários com permissão de visualização não podem deletar tracks' });
+        return;
+      }
       
       // Propagar para outros usuários no projeto
       socket.to(projectId).emit('track-deleted', {

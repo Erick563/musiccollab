@@ -2,11 +2,14 @@ import React from 'react';
 import './CollaborativeCursor.css';
 
 const CollaborativeCursor = ({ user, containerRef }) => {
+  console.log('CollaborativeCursor render - user:', user.userName, 'mousePosition:', user.mousePosition, 'hasContainer:', !!containerRef.current);
   if (!user.mousePosition || !containerRef.current) {
+    console.log('CollaborativeCursor retornou null - mousePosition:', user.mousePosition, 'containerRef:', !!containerRef.current);
     return null;
   }
 
   const { x, y } = user.mousePosition;
+  console.log('Renderizando cursor para', user.userName, 'na posição', { x, y });
 
   return (
     <div 

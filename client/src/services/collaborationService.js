@@ -13,10 +13,14 @@ class CollaborationService {
 
   // Conectar ao WebSocket
   connect(token) {
+    console.log('CollaborationService.connect chamado - socket existe:', !!this.socket, 'socket conectado:', this.socket?.connected);
+    
     if (this.socket && this.socket.connected) {
+      console.log('Retornando socket existente');
       return this.socket;
     }
 
+    console.log('Criando novo socket para:', SOCKET_URL);
     this.socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
@@ -26,17 +30,18 @@ class CollaborationService {
     });
 
     this.socket.on('connect', () => {
-      console.log('Conectado ao servidor de colaboração');
+      console.log('✅ Socket conectado! ID:', this.socket.id);
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Desconectado do servidor de colaboração');
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ Socket desconectado. Razão:', reason);
     });
 
     this.socket.on('error', (error) => {
-      console.error('Erro no socket:', error);
+      console.error('❌ Erro no socket:', error);
     });
 
+    console.log('Socket criado. Conectado imediatamente?', this.socket.connected);
     return this.socket;
   }
 
@@ -83,10 +88,14 @@ class CollaborationService {
 
   // Atualizar posição do mouse
   updateMousePosition(projectId, mousePosition) {
+    console.log('CollaborationService.updateMousePosition - this.socket:', !!this.socket, 'connected:', this.socket?.connected);
+    
     if (!this.socket || !this.socket.connected) {
+      console.warn('CollaborationService: Socket não conectado ao enviar mouse position - socket exists:', !!this.socket, 'connected:', this.socket?.connected);
       return;
     }
 
+    console.log('CollaborationService: Emitindo mouse-move:', { projectId, mousePosition });
     this.socket.emit('mouse-move', { projectId, mousePosition });
   }
 
@@ -171,18 +180,29 @@ class CollaborationService {
     this.socket.emit('track-deleted', { projectId, trackId });
   }
 
-  // Registrar evento
-  on(event, handler) {
-    if (!this.socket) {
-      console.warn('Socket não inicializado');
+  // Enviar estado do projeto para um usuário específico
+  sendProjectState(forSocketId, projectState) {
+    if (!this.socket || !this.socket.connected) {
+      console.warn('Socket não conectado ao enviar estado do projeto');
       return;
     }
 
-    console.log('CollaborationService: Registrando handler para evento:', event);
+    console.log('CollaborationService: Enviando estado do projeto para socket:', forSocketId);
+    this.socket.emit('send-project-state', { forSocketId, projectState });
+  }
+
+  // Registrar evento
+  on(event, handler) {
+    if (!this.socket) {
+      console.warn('⚠️ Socket não inicializado ao tentar registrar evento:', event);
+      return;
+    }
+
+    console.log('📝 CollaborationService: Registrando handler para evento:', event, '- Socket conectado?', this.socket.connected);
     
     // Criar um wrapper que loga quando o evento é recebido
     const wrappedHandler = (data) => {
-      console.log(`CollaborationService: Evento '${event}' recebido:`, data);
+      console.log(`📨 CollaborationService: Evento '${event}' recebido:`, data);
       handler(data);
     };
     

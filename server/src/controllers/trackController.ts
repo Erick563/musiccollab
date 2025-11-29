@@ -131,7 +131,6 @@ export const getTrack = async (req: AuthRequest, res: Response) => {
     const track = await prisma.track.findFirst({
       where: {
         id,
-        isActive: true,
         project: {
           OR: [
             { ownerId: req.user.id },
@@ -192,7 +191,6 @@ export const downloadTrackAudio = async (req: AuthRequest, res: Response) => {
     const track = await prisma.track.findFirst({
       where: {
         id,
-        isActive: true,
         project: {
           OR: [
             { ownerId: req.user.id },
@@ -251,7 +249,6 @@ export const getTrackAudio = async (req: AuthRequest, res: Response) => {
     const track = await prisma.track.findFirst({
       where: {
         id,
-        isActive: true,
         project: {
           OR: [
             { ownerId: req.user.id },
@@ -333,8 +330,7 @@ export const getProjectTracks = async (req: AuthRequest, res: Response) => {
 
     const tracks = await prisma.track.findMany({
       where: {
-        projectId,
-        isActive: true
+        projectId
       },
       select: {
         id: true,
@@ -379,7 +375,6 @@ export const updateTrack = async (req: AuthRequest, res: Response) => {
     const existingTrack = await prisma.track.findFirst({
       where: {
         id,
-        isActive: true,
         project: {
           OR: [
             { ownerId: req.user.id },
@@ -453,7 +448,6 @@ export const deleteTrack = async (req: AuthRequest, res: Response) => {
     const existingTrack = await prisma.track.findFirst({
       where: {
         id,
-        isActive: true,
         project: {
           OR: [
             { ownerId: req.user.id },
@@ -479,9 +473,8 @@ export const deleteTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    await prisma.track.update({
-      where: { id },
-      data: { isActive: false }
+    await prisma.track.delete({
+      where: { id }
     });
 
     return res.json({

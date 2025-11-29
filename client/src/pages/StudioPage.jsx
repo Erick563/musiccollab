@@ -10,7 +10,6 @@ import TimelineRuler from '../components/TimelineRuler';
 import ExportModal from '../components/ExportModal';
 import CollaboratorsPanel from '../components/CollaboratorsPanel';
 import OnlineUsers from '../components/OnlineUsers';
-import UserCursors from '../components/UserCursors';
 import CollaborativeCursor from '../components/CollaborativeCursor';
 import { ToastContainer } from '../components/Toast';
 import './StudioPage.css';
@@ -25,7 +24,6 @@ const StudioPage = () => {
     lockedTracks,
     joinProject,
     leaveProject,
-    updateCursor,
     updateMousePosition,
     requestLock,
     releaseLock,
@@ -34,6 +32,7 @@ const StudioPage = () => {
     notifyTrackAdded,
     notifyTrackUpdated,
     notifyTrackDeleted,
+    sendProjectState,
     on,
     off
   } = useCollaboration();
@@ -55,6 +54,7 @@ const StudioPage = () => {
   const [toasts, setToasts] = useState([]);
   const [projectOwner, setProjectOwner] = useState(null);
   const [editingTrackId, setEditingTrackId] = useState(null);
+  const [isContainerReady, setIsContainerReady] = useState(false);
   const playbackIntervalRef = useRef(null);
   const selectedTrackRef = useRef(null);
   const loadedProjectIdRef = useRef(null);
@@ -62,6 +62,34 @@ const StudioPage = () => {
   const loadingCancelledRef = useRef(false);
   const studioContentRef = useRef(null);
   const mouseThrottleRef = useRef(null);
+  const tracksRef = useRef([]);
+  const masterVolumeRef = useRef(75);
+  const zoomRef = useRef(1);
+  const currentTimeRef = useRef(0);
+  const durationRef = useRef(0);
+  const hasSyncedStateRef = useRef(false);
+  const waitingForSyncRef = useRef(false);
+
+  // Manter refs sincronizados para uso em callbacks
+  useEffect(() => {
+    tracksRef.current = tracks;
+  }, [tracks]);
+
+  useEffect(() => {
+    masterVolumeRef.current = masterVolume;
+  }, [masterVolume]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
 
   useEffect(() => {
     if (tracks.length === 0) {
@@ -139,11 +167,12 @@ const StudioPage = () => {
         
         try {
           const reader = new FileReader();
-          reader.onloadend = () => {
+          reader.onloadend = async () => {
             const audioUrl = reader.result;
             
+            const tempId = Date.now();
             const newTrack = {
-              id: Date.now(),
+              id: tempId,
               trackId: null,
               name: file.name.replace(/\.[^/.]+$/, ""),
               file: file,
@@ -161,6 +190,7 @@ const StudioPage = () => {
               deletedRegions: []
             };
 
+            // Adicionar track temporariamente ao estado local
             setTracks(prevTracks => {
               const updatedTracks = [...prevTracks, newTrack];
               
@@ -174,28 +204,103 @@ const StudioPage = () => {
               setSelectedTrack(newTrack);
             }
             
-            // Notificar outros usuários sobre a nova track
-            if (currentProjectId) {
-              console.log('Notificando track adicionada:', newTrack.name, 'currentProjectId:', currentProjectId);
-              // Não enviar o arquivo/url (muito grande para WebSocket)
-              const trackForSync = {
-                id: newTrack.id,
-                name: newTrack.name,
-                duration: newTrack.duration,
-                startTime: newTrack.startTime,
-                volume: newTrack.volume,
-                pan: newTrack.pan,
-                solo: newTrack.solo,
-                mute: newTrack.mute,
-                color: newTrack.color,
-                // url e file são muito grandes para enviar via WebSocket
-                // Outros usuários verão a track quando o projeto for salvo
-                isTemporary: true
-              };
-              notifyTrackAdded(trackForSync);
-            }
+            // AUTO-SAVE: Salvar imediatamente no banco de dados
+            const projectIdToUse = currentProjectId || projectId;
             
-            showToast('Áudio carregado com sucesso! Lembre-se de salvar o projeto.', 'success');
+            if (projectIdToUse) {
+              showToast('Áudio carregado! Salvando automaticamente...', 'info');
+              
+              try {
+                const trackData = {
+                  name: newTrack.name,
+                  startTime: newTrack.startTime || 0,
+                  volume: newTrack.volume || 75,
+                  pan: newTrack.pan || 0,
+                  color: newTrack.color
+                };
+
+                console.log('Auto-save: Salvando track no projeto', projectIdToUse);
+                
+                // Fazer upload da track para o servidor
+                const uploadedTrack = await trackService.createTrack(projectIdToUse, file, trackData);
+                
+                console.log('Auto-save: Track criada com ID:', uploadedTrack.id);
+                
+                // Atualizar duração
+                await trackService.updateTrack(uploadedTrack.id, { duration: Math.floor(trackDuration) });
+
+                // Atualizar estado local com o ID real do banco
+                let updatedTracks = [];
+                setTracks(prevTracks => {
+                  updatedTracks = prevTracks.map(t => 
+                    t.id === tempId 
+                      ? { ...t, id: uploadedTrack.id, trackId: uploadedTrack.id }
+                      : t
+                  );
+                  return updatedTracks;
+                });
+
+                // Aguardar um pouco para o estado ser atualizado
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Salvar estado completo do projeto
+                console.log('Auto-save: Salvando estado do projeto...');
+                const projectState = {
+                  tracks: updatedTracks.map(track => ({
+                    id: track.id,
+                    trackId: track.trackId || track.id,
+                    name: track.name,
+                    duration: track.duration,
+                    startTime: track.startTime || 0,
+                    volume: track.volume || 75,
+                    pan: track.pan || 0,
+                    solo: track.solo || false,
+                    mute: track.mute || false,
+                    color: track.color,
+                    trimStart: null,
+                    trimEnd: null,
+                    deletedRegions: [],
+                    isSegment: false
+                  })),
+                  masterVolume: masterVolume,
+                  zoom: zoom,
+                  currentTime: currentTime
+                };
+
+                const projectData = {
+                  title: projectName.trim() || 'Novo Projeto',
+                  state: projectState
+                };
+
+                await projectService.updateProject(projectIdToUse, projectData);
+                console.log('Auto-save: Estado do projeto salvo');
+
+                // Notificar outros usuários sobre a nova track SALVA
+                const trackForSync = {
+                  id: uploadedTrack.id,
+                  trackId: uploadedTrack.id,
+                  name: newTrack.name,
+                  duration: newTrack.duration,
+                  startTime: newTrack.startTime,
+                  volume: newTrack.volume,
+                  pan: newTrack.pan,
+                  solo: newTrack.solo,
+                  mute: newTrack.mute,
+                  color: newTrack.color,
+                  isTemporary: false
+                };
+                
+                console.log('Auto-save: Notificando outros usuários sobre nova track');
+                notifyTrackAdded(trackForSync);
+
+                showToast('Track salva e sincronizada com sucesso!', 'success');
+              } catch (error) {
+                console.error('Erro no auto-save:', error);
+                showToast('Erro ao salvar track automaticamente. Tente salvar o projeto manualmente.', 'error');
+              }
+            } else {
+              showToast('Áudio carregado! Crie ou abra um projeto para compartilhar.', 'warning');
+            }
             
             URL.revokeObjectURL(tempUrl);
           };
@@ -277,11 +382,14 @@ const StudioPage = () => {
   const lockTimerRef = useRef(null);
 
   const handleTrackUpdate = async (trackId, updates) => {
-    console.log('handleTrackUpdate CHAMADO - trackId:', trackId, 'updates:', updates, 'currentProjectId:', currentProjectId);
-    
-    // Mudanças de posição (startTime) não precisam de lock imediato
+    // Mudanças menores que não precisam de lock
     const isPositionChange = updates.startTime !== undefined && Object.keys(updates).length === 1;
-    const isMinorChange = updates.selectedRegion !== undefined || isPositionChange;
+    const isMuteChange = updates.mute !== undefined && Object.keys(updates).length === 1;
+    const isSoloChange = updates.solo !== undefined && Object.keys(updates).length === 1;
+    const isVolumeChange = updates.volume !== undefined && Object.keys(updates).length === 1;
+    const isPanChange = updates.pan !== undefined && Object.keys(updates).length === 1;
+    const isMinorChange = updates.selectedRegion !== undefined || isPositionChange || 
+                          isMuteChange || isSoloChange || isVolumeChange || isPanChange;
 
     // Verificar se a track está bloqueada por outro usuário (apenas para mudanças importantes)
     if (!isMinorChange && isTrackLocked(trackId) && editingTrackId !== trackId) {
@@ -311,7 +419,6 @@ const StudioPage = () => {
 
     // Notificar outros usuários com debounce para mudanças de posição
     if (currentProjectId && !updates.selectedRegion) {
-      console.log('Notificando atualização de track - currentProjectId:', currentProjectId, 'trackId:', trackId, 'updates:', updates);
       if (isPositionChange) {
         // Debounce para mudanças de posição (evitar spam durante drag)
         if (notificationTimerRef.current) {
@@ -324,8 +431,6 @@ const StudioPage = () => {
         // Notificação imediata para outras mudanças
         notifyTrackUpdated(trackId, updates);
       }
-    } else {
-      console.log('Notificação NÃO enviada - currentProjectId:', currentProjectId, 'updates.selectedRegion:', updates.selectedRegion);
     }
 
     // Liberar bloqueio após 3 segundos de inatividade (apenas para mudanças importantes)
@@ -434,6 +539,7 @@ const StudioPage = () => {
         
         const validTracks = restoredTracks.filter(t => t !== null);
         
+        // Aplicar estado salvo do projeto
         if (project.state) {
           const state = project.state;
           
@@ -480,6 +586,31 @@ const StudioPage = () => {
           setTracks(validTracks);
         }
         
+        // Aguardar sincronização de estado de outros usuários (se houver)
+        // Esperar até 2 segundos por estado sincronizado
+        console.log('StudioPage: Aguardando estado sincronizado de outros usuários...');
+        waitingForSyncRef.current = true;
+        hasSyncedStateRef.current = false;
+        
+        await new Promise(resolve => {
+          const timeout = setTimeout(() => {
+            console.log('StudioPage: Timeout - nenhum estado sincronizado recebido');
+            waitingForSyncRef.current = false;
+            resolve(null);
+          }, 2000);
+          
+          // Verificar periodicamente se recebeu estado sincronizado
+          const checkInterval = setInterval(() => {
+            if (hasSyncedStateRef.current) {
+              console.log('StudioPage: Estado sincronizado recebido!');
+              clearTimeout(timeout);
+              clearInterval(checkInterval);
+              waitingForSyncRef.current = false;
+              resolve(null);
+            }
+          }, 100);
+        });
+        
         // Marca o projeto como carregado e mostra o toast apenas uma vez
         // Verifica se ainda é o mesmo projeto que começamos a carregar
         if (!loadingCancelledRef.current && loadedProjectIdRef.current === projectId && !toastShownRef.current) {
@@ -521,6 +652,134 @@ const StudioPage = () => {
     };
   }, [projectId]);
 
+  // Registrar listeners de sincronização ANTES de qualquer outra coisa
+  useEffect(() => {
+    console.log('StudioPage: Registrando listeners globais de sincronização de estado');
+    
+    const handleRequestProjectState = (data) => {
+      console.log('StudioPage: ========== RECEBIDA SOLICITAÇÃO DE ESTADO ==========');
+      console.log('StudioPage: Socket solicitante:', data.forSocketId);
+      console.log('StudioPage: Tracks atuais:', tracksRef.current.length);
+      
+      // Usar refs para obter o estado mais recente
+      const currentTracks = tracksRef.current;
+      const currentMasterVolume = masterVolumeRef.current;
+      const currentZoom = zoomRef.current;
+      const currentCurrentTime = currentTimeRef.current;
+      const currentDuration = durationRef.current;
+      
+      // Criar um snapshot simplificado das tracks (sem arquivos/blobs grandes)
+      const projectState = {
+        tracks: currentTracks.map(track => ({
+          id: track.id,
+          trackId: track.trackId,
+          name: track.name,
+          duration: track.duration,
+          startTime: track.startTime,
+          volume: track.volume,
+          pan: track.pan,
+          solo: track.solo,
+          mute: track.mute,
+          color: track.color,
+          trimStart: track.trimStart,
+          trimEnd: track.trimEnd,
+          deletedRegions: track.deletedRegions,
+          isSegment: track.isSegment,
+          isTemporary: track.isTemporary
+        })),
+        masterVolume: currentMasterVolume,
+        zoom: currentZoom,
+        currentTime: currentCurrentTime,
+        duration: currentDuration
+      };
+      
+      console.log('StudioPage: Enviando estado com', projectState.tracks.length, 'tracks');
+      sendProjectState(data.forSocketId, projectState);
+    };
+
+    const handleReceiveProjectState = (data) => {
+      console.log('StudioPage: ========== RECEBIDO ESTADO DO PROJETO ==========');
+      console.log('StudioPage: De:', data.fromUserName);
+      const { projectState } = data;
+      
+      if (!projectState || !projectState.tracks) {
+        console.warn('Estado do projeto inválido recebido');
+        return;
+      }
+
+      console.log('StudioPage: Estado recebido contém', projectState.tracks.length, 'tracks');
+      console.log('StudioPage: Tracks recebidas:', projectState.tracks.map(t => ({ id: t.id, name: t.name })));
+      console.log('StudioPage: waitingForSync:', waitingForSyncRef.current);
+
+      // Marcar que recebemos estado sincronizado
+      hasSyncedStateRef.current = true;
+
+      // Aplicar o estado recebido
+      setTracks(prevTracks => {
+        console.log('StudioPage: Tracks locais antes da mesclagem:', prevTracks.length);
+        
+        // Criar um mapa das tracks existentes por ID
+        const existingTracksMap = new Map(prevTracks.map(t => [t.id, t]));
+        
+        // Mesclar tracks: manter as que têm arquivos, adicionar novas do estado recebido
+        const mergedTracks = projectState.tracks.map(receivedTrack => {
+          const existingTrack = existingTracksMap.get(receivedTrack.id);
+          
+          if (existingTrack) {
+            console.log('StudioPage: Track', receivedTrack.name, 'já existe, mesclando');
+            // Se já existe, atualizar com os dados recebidos mas manter arquivo/url
+            return {
+              ...existingTrack,
+              ...receivedTrack,
+              url: existingTrack.url,
+              file: existingTrack.file
+            };
+          } else {
+            console.log('StudioPage: Track', receivedTrack.name, 'é nova, adicionando');
+            // Se não existe, adicionar como nova track
+            // Se for temporária (não salva), não terá url/file
+            return {
+              ...receivedTrack,
+              url: null,
+              file: null,
+              isPlaceholder: receivedTrack.isTemporary
+            };
+          }
+        });
+        
+        // Adicionar tracks que existem localmente mas não foram recebidas
+        prevTracks.forEach(track => {
+          if (!projectState.tracks.find(t => t.id === track.id)) {
+            console.log('StudioPage: Track local', track.name, 'não está no estado recebido, mantendo');
+            mergedTracks.push(track);
+          }
+        });
+        
+        console.log('StudioPage: Total de tracks após mesclagem:', mergedTracks.length);
+        return mergedTracks;
+      });
+
+      // Aplicar outras configurações do estado
+      if (projectState.masterVolume !== undefined) {
+        setMasterVolume(projectState.masterVolume);
+      }
+      if (projectState.zoom !== undefined) {
+        setZoom(projectState.zoom);
+      }
+      
+      showToast(`Estado sincronizado com ${data.fromUserName}`, 'info', 2000);
+    };
+
+    on('request-project-state', handleRequestProjectState);
+    on('receive-project-state', handleReceiveProjectState);
+
+    return () => {
+      console.log('StudioPage: Removendo listeners globais de sincronização de estado');
+      off('request-project-state', handleRequestProjectState);
+      off('receive-project-state', handleReceiveProjectState);
+    };
+  }, [sendProjectState, on, off, showToast]);
+
   // Entrar/sair do projeto via WebSocket para colaboração
   useEffect(() => {
     console.log('StudioPage useEffect [currentProjectId, user] - currentProjectId:', currentProjectId, 'user:', user?.name);
@@ -548,20 +807,24 @@ const StudioPage = () => {
     }
   }, [currentProjectId, user, joinProject, leaveProject]);
 
-  // Atualizar posição do cursor para outros usuários
+  // Detectar quando o container está pronto
   useEffect(() => {
-    if (currentProjectId && !isPlaying) {
-      const debounceTimer = setTimeout(() => {
-        updateCursor(currentTime);
-      }, 100);
-      
-      return () => clearTimeout(debounceTimer);
+    if (studioContentRef.current && !isContainerReady) {
+      console.log('Container do studio está pronto!');
+      setIsContainerReady(true);
     }
-  }, [currentTime, currentProjectId, isPlaying, updateCursor]);
+  });
 
   // Trackear movimento do mouse para cursor colaborativo
   useEffect(() => {
-    if (!currentProjectId || !isConnected || !studioContentRef.current) return;
+    console.log('Mouse tracking effect - currentProjectId:', currentProjectId, 'isConnected:', isConnected, 'hasContainer:', !!studioContentRef.current, 'isContainerReady:', isContainerReady);
+    
+    if (!currentProjectId || !isConnected || !studioContentRef.current || !isContainerReady) {
+      console.log('Mouse tracking não ativado - condições não satisfeitas');
+      return;
+    }
+
+    console.log('✅ Ativando tracking de mouse...');
 
     const handleMouseMove = (e) => {
       const container = studioContentRef.current;
@@ -578,6 +841,7 @@ const StudioPage = () => {
 
       mouseThrottleRef.current = setTimeout(() => {
         if (x >= 0 && x <= 100 && y >= 0 && y <= 100) {
+          console.log('Enviando posição do mouse:', { x, y });
           updateMousePosition({ x, y });
         }
       }, 50);
@@ -585,14 +849,17 @@ const StudioPage = () => {
 
     const container = studioContentRef.current;
     container.addEventListener('mousemove', handleMouseMove);
+    console.log('✅ Event listener adicionado ao container');
 
     return () => {
+      console.log('Removendo event listener do container');
       container.removeEventListener('mousemove', handleMouseMove);
       if (mouseThrottleRef.current) {
         clearTimeout(mouseThrottleRef.current);
       }
     };
-  }, [currentProjectId, isConnected, updateMousePosition]);
+  }, [currentProjectId, isConnected, isContainerReady, updateMousePosition]);
+
 
   // Escutar eventos de sincronização de tracks
   useEffect(() => {
@@ -603,30 +870,50 @@ const StudioPage = () => {
     }
 
     // Handler para quando uma track é adicionada por outro usuário
-    const handleTrackAdded = (data) => {
+    const handleTrackAdded = async (data) => {
       console.log('Track adicionada por outro usuário:', data);
       const { track, userName } = data;
       
       // Verificar se a track já existe (evitar duplicação)
-      setTracks(prevTracks => {
-        const exists = prevTracks.some(t => t.id === track.id);
-        if (exists) {
-          console.log('Track já existe, ignorando');
-          return prevTracks;
+      const trackExists = tracksRef.current.some(t => t.id === track.id);
+      if (trackExists) {
+        console.log('Track já existe, ignorando');
+        return;
+      }
+      
+      // Se a track não é temporária (foi salva), carregar do servidor
+      if (!track.isTemporary && track.trackId) {
+        try {
+          showToast(`${userName} adicionou "${track.name}". Carregando...`, 'info');
+          
+          // Buscar o áudio do servidor
+          const audioUrl = await trackService.getTrackAudio(track.trackId);
+          
+          const trackToAdd = {
+            ...track,
+            url: audioUrl,
+            file: null
+          };
+          
+          setTracks(prevTracks => [...prevTracks, trackToAdd]);
+          showToast(`"${track.name}" carregada com sucesso!`, 'success');
+        } catch (error) {
+          console.error('Erro ao carregar track:', error);
+          showToast(`Erro ao carregar "${track.name}"`, 'error');
         }
-        
-        // Se for temporária (não salva ainda), criar placeholder visual
-        const trackToAdd = track.isTemporary ? {
+      } else {
+        // Track temporária (não deveria acontecer mais com auto-save)
+        const trackToAdd = {
           ...track,
-          url: null, // Sem áudio até salvar
+          url: null,
           file: null,
           isTemporary: true,
-          isPlaceholder: true // Flag para renderizar diferente
-        } : track;
+          isPlaceholder: true
+        };
         
-        showToast(`${userName} adicionou "${track.name}". Aguarde ${userName} salvar o projeto para ouvir.`, 'info', 5000);
-        return [...prevTracks, trackToAdd];
-      });
+        setTracks(prevTracks => [...prevTracks, trackToAdd]);
+        showToast(`${userName} adicionou "${track.name}" (carregando...)`, 'info');
+      }
     };
 
     // Handler para quando uma track é atualizada por outro usuário
@@ -1369,17 +1656,19 @@ const StudioPage = () => {
         </div>
       </div>
 
-      <div className="studio-content audacity-layout" ref={studioContentRef} style={{ position: 'relative' }}>
+      <div className="studio-content audacity-layout" ref={studioContentRef}>
         {/* Cursores colaborativos */}
-        {currentProjectId && onlineUsers
-          .filter(u => u.userId !== user?.id && u.mousePosition)
-          .map(u => (
-            <CollaborativeCursor
-              key={u.socketId}
-              user={{ ...u, cursorColor: getUserColor(u.userId) }}
-              containerRef={studioContentRef}
-            />
-          ))}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 10000 }}>
+          {currentProjectId && onlineUsers
+            .filter(u => u.userId !== user?.id && u.mousePosition)
+            .map(u => (
+              <CollaborativeCursor
+                key={u.socketId}
+                user={{ ...u, cursorColor: getUserColor(u.userId) }}
+                containerRef={studioContentRef}
+              />
+            ))}
+        </div>
 
         <aside className="studio-sidebar">
           <div className="sidebar-section">
@@ -1484,13 +1773,6 @@ const StudioPage = () => {
           ) : (
             <>
               <TimelineRuler duration={duration} />
-              {currentProjectId && onlineUsers.length > 0 && (
-                <UserCursors 
-                  users={onlineUsers.filter(u => u.userId !== user?.id)} 
-                  duration={duration} 
-                  zoom={zoom} 
-                />
-              )}
               <div className="timeline-tracks">
                 {tracks.map(track => {
                   const hasSoloedTracks = tracks.some(t => t.solo);

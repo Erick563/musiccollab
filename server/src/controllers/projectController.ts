@@ -35,9 +35,7 @@ export const getProjects = async (req: AuthRequest, res: Response) => {
         owner: {
           select: {
             id: true,
-            name: true,
-            username: true,
-            avatar: true
+            name: true
           }
         },
         collaborators: {
@@ -45,18 +43,12 @@ export const getProjects = async (req: AuthRequest, res: Response) => {
             user: {
               select: {
                 id: true,
-                name: true,
-                username: true,
-                avatar: true
+                name: true
               }
             }
           }
         },
-        tracks: {
-          where: {
-            isActive: true
-          }
-        },
+        tracks: true,
         _count: {
           select: {
             tracks: true,
@@ -78,9 +70,6 @@ export const getProjects = async (req: AuthRequest, res: Response) => {
       return {
         id: project.id,
         title: project.title,
-        description: project.description,
-        genre: project.genre,
-        isPublic: project.isPublic,
         status: project.status,
         duration,
         tracksCount: project._count.tracks,
@@ -133,9 +122,7 @@ export const getProject = async (req: AuthRequest, res: Response) => {
         owner: {
           select: {
             id: true,
-            name: true,
-            username: true,
-            avatar: true
+            name: true
           }
         },
         collaborators: {
@@ -143,18 +130,12 @@ export const getProject = async (req: AuthRequest, res: Response) => {
             user: {
               select: {
                 id: true,
-                name: true,
-                username: true,
-                avatar: true
+                name: true
               }
             }
           }
         },
-        tracks: {
-          where: {
-            isActive: true
-          }
-        }
+        tracks: true
       }
     });
 
@@ -170,9 +151,6 @@ export const getProject = async (req: AuthRequest, res: Response) => {
       project: {
         id: project.id,
         title: project.title,
-        description: project.description,
-        genre: project.genre,
-        isPublic: project.isPublic,
         status: project.status,
         state: project.state,
         owner: project.owner,
@@ -199,7 +177,7 @@ export const createProject = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const { title, description, genre, isPublic, state } = req.body;
+    const { title, state } = req.body;
 
     if (!title || title.trim() === '') {
       return res.status(400).json({
@@ -211,9 +189,6 @@ export const createProject = async (req: AuthRequest, res: Response) => {
     const project = await prisma.project.create({
       data: {
         title: title.trim(),
-        description: description?.trim() || null,
-        genre: genre?.trim() || null,
-        isPublic: isPublic || false,
         status: 'DRAFT',
         state: state || null,
         ownerId: req.user.id,
@@ -229,9 +204,7 @@ export const createProject = async (req: AuthRequest, res: Response) => {
         owner: {
           select: {
             id: true,
-            name: true,
-            username: true,
-            avatar: true
+            name: true
           }
         },
         collaborators: {
@@ -239,9 +212,7 @@ export const createProject = async (req: AuthRequest, res: Response) => {
             user: {
               select: {
                 id: true,
-                name: true,
-                username: true,
-                avatar: true
+                name: true
               }
             }
           }
@@ -255,9 +226,6 @@ export const createProject = async (req: AuthRequest, res: Response) => {
       project: {
         id: project.id,
         title: project.title,
-        description: project.description,
-        genre: project.genre,
-        isPublic: project.isPublic,
         status: project.status,
         state: project.state,
         owner: project.owner,
@@ -288,7 +256,7 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
     }
 
     const { id } = req.params;
-    const { title, description, genre, isPublic, status, state } = req.body;
+    const { title, status, state } = req.body;
 
     const existingProject = await prisma.project.findFirst({
       where: {
@@ -318,9 +286,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
 
     const updateData: any = {};
     if (title !== undefined) updateData.title = title.trim();
-    if (description !== undefined) updateData.description = description?.trim() || null;
-    if (genre !== undefined) updateData.genre = genre?.trim() || null;
-    if (isPublic !== undefined) updateData.isPublic = isPublic;
     if (status !== undefined) updateData.status = status;
     if (state !== undefined) updateData.state = state;
 
@@ -331,9 +296,7 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
         owner: {
           select: {
             id: true,
-            name: true,
-            username: true,
-            avatar: true
+            name: true
           }
         },
         collaborators: {
@@ -341,9 +304,7 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
             user: {
               select: {
                 id: true,
-                name: true,
-                username: true,
-                avatar: true
+                name: true
               }
             }
           }
@@ -357,9 +318,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       project: {
         id: updatedProject.id,
         title: updatedProject.title,
-        description: updatedProject.description,
-        genre: updatedProject.genre,
-        isPublic: updatedProject.isPublic,
         status: updatedProject.status,
         state: updatedProject.state,
         owner: updatedProject.owner,
@@ -463,9 +421,7 @@ export const getCollaborators = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            username: true,
-            email: true,
-            avatar: true
+            email: true
           }
         }
       }
@@ -542,9 +498,7 @@ export const addCollaborator = async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         name: true,
-        username: true,
-        email: true,
-        avatar: true
+        email: true
       }
     });
 
@@ -592,9 +546,7 @@ export const addCollaborator = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            username: true,
-            email: true,
-            avatar: true
+            email: true
           }
         }
       }
@@ -677,9 +629,7 @@ export const updateCollaborator = async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            username: true,
-            email: true,
-            avatar: true
+            email: true
           }
         }
       }

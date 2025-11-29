@@ -55,7 +55,7 @@ app.use('/api/', limiter);
 
 // Configurar CORS para aceitar requisições da rede local
 const corsOptions = {
-  origin: function (origin: string | undefined, callback: (err: Error | null, allow: boolean) => void) {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) {
     // Permitir requisições sem origin (mobile apps, Postman, etc)
     if (!origin) return callback(null, true);
     
@@ -74,9 +74,16 @@ const corsOptions = {
     }
     
     const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
-    callback(null, isAllowed);
+    
+    if (isAllowed) {
+      callback(null, origin); // Return the origin if allowed
+    } else {
+      callback(null, false); // Explicitly deny
+    }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 app.use(cors(corsOptions));

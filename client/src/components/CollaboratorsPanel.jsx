@@ -140,13 +140,9 @@ const CollaboratorsPanel = ({ projectId, isOwner, onClose }) => {
                 <li key={collab.id} className="collaborator-item">
                   <div className="collaborator-info">
                     <div className="collaborator-avatar">
-                      {collab.user.avatar ? (
-                        <img src={collab.user.avatar} alt={collab.user.name} />
-                      ) : (
-                        <div className="avatar-placeholder">
-                          {collab.user.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <div className="avatar-placeholder">
+                        {collab.user.name.charAt(0).toUpperCase()}
+                      </div>
                     </div>
                     <div className="collaborator-details">
                       <div className="collaborator-name">{collab.user.name}</div>

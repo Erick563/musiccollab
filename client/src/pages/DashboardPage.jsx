@@ -30,7 +30,6 @@ const DashboardPage = () => {
           lastUpdated: project.updatedAt,
           tracks: project.tracksCount || 0,
           collaborators: project.collaboratorsCount || 0,
-          isPublic: project.isPublic,
           status: project.status
         }));
 
@@ -254,12 +253,7 @@ const DashboardPage = () => {
                   <div className="project-header">
                     <h4>{project.name}</h4>
                     <div className="project-status">
-                    &nbsp; 
-                      {project.isPublic ? (
-                        <span className="status-badge public">Público</span>
-                      ) : (
-                        <span className="status-badge private">Privado</span>
-                      )}
+                      <span className="status-badge">{project.status}</span>
                     </div>
                   </div>
                   

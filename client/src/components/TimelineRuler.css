@@ -2,6 +2,7 @@
   width: 100%;
   height: 40px;
   background: rgba(0, 0, 0, 0.4);
+  display: flex;
   border-bottom: 2px solid rgba(0, 212, 255, 0.3);
   position: sticky;
   top: 0;
@@ -9,9 +10,14 @@
   margin-bottom: 1rem;
 }
 
+.ruler-spacer {
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.2);
+}
+
 .ruler-track {
   position: relative;
-  width: 100%;
+  flex: 1;
   height: 100%;
   padding: 0 0.5rem;
 }

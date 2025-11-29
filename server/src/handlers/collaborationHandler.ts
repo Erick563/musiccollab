@@ -6,7 +6,6 @@ interface UserData {
   id: string;
   name: string;
   email: string;
-  avatar?: string;
 }
 
 interface SocketWithUser extends Socket {
@@ -19,8 +18,8 @@ interface ProjectRoom {
     socketId: string;
     userId: string;
     userName: string;
-    userAvatar?: string;
     cursorPosition?: number;
+    mousePosition?: { x: number; y: number };
     isEditing: boolean;
     editingTrackId?: string;
   }>;
@@ -51,8 +50,7 @@ export const setupCollaborationHandlers = (io: Server) => {
         select: {
           id: true,
           name: true,
-          email: true,
-          avatar: true
+          email: true
         }
       });
 
@@ -63,8 +61,7 @@ export const setupCollaborationHandlers = (io: Server) => {
       socket.user = {
         id: user.id,
         name: user.name,
-        email: user.email,
-        avatar: user.avatar || undefined
+        email: user.email
       };
       next();
     } catch (error) {
@@ -168,7 +165,6 @@ export const setupCollaborationHandlers = (io: Server) => {
           socketId: socket.id,
           userId: socket.user.id,
           userName: socket.user.name,
-          userAvatar: socket.user.avatar,
           cursorPosition: 0,
           isEditing: false
         });
@@ -177,9 +173,9 @@ export const setupCollaborationHandlers = (io: Server) => {
         const onlineUsers = Array.from(room.users.values()).map(user => ({
           userId: user.userId,
           userName: user.userName,
-          userAvatar: user.userAvatar,
           socketId: user.socketId,
           cursorPosition: user.cursorPosition,
+          mousePosition: user.mousePosition,
           isEditing: user.isEditing,
           editingTrackId: user.editingTrackId
         }));
@@ -191,9 +187,9 @@ export const setupCollaborationHandlers = (io: Server) => {
         socket.to(projectId).emit('user-joined', {
           userId: socket.user.id,
           userName: socket.user.name,
-          userAvatar: socket.user.avatar,
           socketId: socket.id,
           cursorPosition: 0,
+          mousePosition: undefined,
           isEditing: false
         });
 
@@ -207,6 +203,24 @@ export const setupCollaborationHandlers = (io: Server) => {
           }));
 
         socket.emit('locked-tracks', lockedTracks);
+
+        // Solicitar estado atual do projeto de um usuário já conectado
+        // Enviar para o primeiro usuário encontrado (exceto o novo usuário)
+        const existingUsers = Array.from(room.users.values()).filter(u => u.socketId !== socket.id);
+        console.log(`========== NOVO USUÁRIO ENTROU: ${socket.user.name} ==========`);
+        console.log(`Usuários já conectados no projeto: ${existingUsers.length}`);
+        if (existingUsers.length > 0) {
+          // Pedir ao primeiro usuário conectado para enviar seu estado
+          const firstUser = existingUsers[0];
+          console.log(`Solicitando estado do projeto para ${firstUser.userName} (socket: ${firstUser.socketId})`);
+          console.log(`Estado será enviado para ${socket.user.name} (socket: ${socket.id})`);
+          io.to(firstUser.socketId).emit('request-project-state', {
+            forUserId: socket.user.id,
+            forSocketId: socket.id
+          });
+        } else {
+          console.log('Nenhum usuário conectado para fornecer estado inicial');
+        }
 
         console.log(`Usuário ${socket.user.name} entrou no projeto ${projectId}`);
       } catch (error) {
@@ -243,6 +257,17 @@ export const setupCollaborationHandlers = (io: Server) => {
     // Atualizar posição do mouse
     socket.on('mouse-move', (data: { projectId: string; mousePosition: { x: number; y: number } }) => {
       const { projectId, mousePosition } = data;
+      console.log(`[mouse-move] Recebido de ${socket.user?.name} (${socket.id}) - projectId: ${projectId}, mousePosition:`, mousePosition);
+      
+      const room = projectRooms.get(projectId);
+      
+      if (room && socket.user) {
+        const user = room.users.get(socket.id);
+        if (user) {
+          user.mousePosition = mousePosition;
+          console.log(`[mouse-move] Posição do mouse atualizada para ${socket.user.name}:`, mousePosition);
+        }
+      }
       
       // Propagar para outros usuários no projeto
       socket.to(projectId).emit('mouse-updated', {
@@ -250,6 +275,7 @@ export const setupCollaborationHandlers = (io: Server) => {
         socketId: socket.id,
         mousePosition
       });
+      console.log(`[mouse-move] Evento mouse-updated enviado para sala ${projectId}`);
     });
 
     // Solicitar bloqueio para editar uma track
@@ -379,6 +405,28 @@ export const setupCollaborationHandlers = (io: Server) => {
         userName: socket.user?.name,
         trackId
       });
+    });
+
+    // Enviar estado do projeto para um usuário específico
+    socket.on('send-project-state', (data: { forSocketId: string; projectState: any }) => {
+      const { forSocketId, projectState } = data;
+      
+      console.log(`========== RECEBIDO ESTADO DO PROJETO ==========`);
+      console.log(`De: ${socket.user?.name} (${socket.id})`);
+      console.log(`Para: socket ${forSocketId}`);
+      console.log(`Tracks no estado: ${projectState?.tracks?.length || 0}`);
+      if (projectState?.tracks) {
+        console.log(`Tracks:`, projectState.tracks.map((t: any) => ({ id: t.id, name: t.name })));
+      }
+      
+      // Enviar estado apenas para o usuário específico
+      io.to(forSocketId).emit('receive-project-state', {
+        fromUserId: socket.user?.id,
+        fromUserName: socket.user?.name,
+        projectState
+      });
+      
+      console.log(`Estado enviado para socket ${forSocketId}`);
     });
 
     // Desconexão

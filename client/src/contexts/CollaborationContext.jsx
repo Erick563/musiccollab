@@ -71,6 +71,7 @@ export const CollaborationProvider = ({ children }) => {
         });
 
         collaborationService.on('cursor-updated', ({ userId, socketId, cursorPosition }) => {
+          console.log('cursor-updated', userId, socketId, cursorPosition);
           setOnlineUsers(prev => prev.map(u => 
             u.socketId === socketId 
               ? { ...u, cursorPosition } 
@@ -79,6 +80,7 @@ export const CollaborationProvider = ({ children }) => {
         });
 
         collaborationService.on('mouse-updated', ({ userId, socketId, mousePosition }) => {
+          console.log('mouse-updated', userId, socketId, mousePosition);
           setOnlineUsers(prev => prev.map(u => 
             u.socketId === socketId 
               ? { ...u, mousePosition } 
@@ -173,8 +175,12 @@ export const CollaborationProvider = ({ children }) => {
 
   // Atualizar posição do mouse
   const updateMousePosition = useCallback((mousePosition) => {
+    console.log('CollaborationContext.updateMousePosition chamado - currentProjectId:', currentProjectId, 'isConnected:', isConnected, 'mousePosition:', mousePosition);
     if (currentProjectId && isConnected) {
+      console.log('Enviando mouse position para servidor via collaborationService');
       collaborationService.updateMousePosition(currentProjectId, mousePosition);
+    } else {
+      console.warn('Mouse position não enviado - currentProjectId:', currentProjectId, 'isConnected:', isConnected);
     }
   }, [currentProjectId, isConnected]);
 
@@ -249,6 +255,13 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, []);
 
+  // Enviar estado do projeto para um usuário específico
+  const sendProjectState = useCallback((forSocketId, projectState) => {
+    if (isConnected) {
+      collaborationService.sendProjectState(forSocketId, projectState);
+    }
+  }, [isConnected]);
+
   // Gerenciar colaboradores (API REST)
   const getCollaborators = useCallback(async (projectId) => {
     return collaborationService.getCollaborators(projectId);
@@ -292,6 +305,7 @@ export const CollaborationProvider = ({ children }) => {
     notifyTrackAdded,
     notifyTrackUpdated,
     notifyTrackDeleted,
+    sendProjectState,
     getCollaborators,
     addCollaborator,
     updateCollaboratorRole,

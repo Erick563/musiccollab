@@ -12,13 +12,9 @@ const OnlineUsers = ({ users }) => {
         {users.map((user) => (
           <div key={user.socketId} className="online-user-item" title={user.userName}>
             <div className="user-avatar">
-              {user.userAvatar ? (
-                <img src={user.userAvatar} alt={user.userName} />
-              ) : (
-                <div className="avatar-placeholder">
-                  {user.userName.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <div className="avatar-placeholder">
+                {user.userName.charAt(0).toUpperCase()}
+              </div>
               {user.isEditing && (
                 <div className="editing-indicator" title="Editando">✏️</div>
               )}

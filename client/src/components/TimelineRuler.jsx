@@ -41,6 +41,7 @@ const TimelineRuler = ({ duration }) => {
 
   return (
     <div className="timeline-ruler">
+      <div className="ruler-spacer" style={{ width: '250px' }} />
       <div className="ruler-track">
         {markers.map((marker, index) => (
           <div 

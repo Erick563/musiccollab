@@ -13,20 +13,14 @@ datasource db {
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
-  username  String   @unique
   password  String
   name      String
-  bio       String?
-  avatar    String?
-  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
   projects     Project[]
   collaborations ProjectCollaborator[]
-  messages     Message[]
-  notifications Notification[]
 
   @@map("users")
 }
@@ -34,9 +28,6 @@ model User {
 model Project {
   id          String   @id @default(cuid())
   title       String
-  description String?
-  genre       String?
-  isPublic    Boolean  @default(false)
   status      ProjectStatus @default(DRAFT)
   state       Json?    // Estado completo do projeto (tracks, masterVolume, zoom, etc.)
   createdAt   DateTime @default(now())
@@ -47,7 +38,6 @@ model Project {
   ownerId       String
   collaborators ProjectCollaborator[]
   tracks        Track[]
-  messages      Message[]
 
   @@map("projects")
 }
@@ -76,7 +66,6 @@ model Track {
   duration    Int?     // em segundos
   mimeType    String?
   audioData   Bytes?   // Dados binários do arquivo de áudio (armazenado no PostgreSQL como BYTEA)
-  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -85,35 +74,6 @@ model Track {
   projectId String
 
   @@map("tracks")
-}
-
-model Message {
-  id        String   @id @default(cuid())
-  content   String
-  createdAt DateTime @default(now())
-
-  // Relacionamentos
-  author    User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  authorId  String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  projectId String
-
-  @@map("messages")
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  title     String
-  message   String
-  type      NotificationType @default(INFO)
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  // Relacionamentos
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String
-
-  @@map("notifications")
 }
 
 // Enums
@@ -129,12 +89,4 @@ enum CollaboratorRole {
   ADMIN
   COLLABORATOR
   VIEWER
-}
-
-enum NotificationType {
-  INFO
-  SUCCESS
-  WARNING
-  ERROR
-  INVITATION
 }

@@ -39,13 +39,10 @@ export class User {
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(userData.password, saltRounds);
 
-    const username = userData.email.split('@')[0] + '_' + Date.now();
-
     const newUser = await prisma.user.create({
       data: {
         name: userData.name,
         email: userData.email,
-        username: username,
         password: hashedPassword,
       }
     });

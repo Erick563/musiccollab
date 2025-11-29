@@ -2,17 +2,14 @@ import React from 'react';
 import './CollaborativeCursor.css';
 
 const CollaborativeCursor = ({ user, containerRef }) => {
-  console.log('CollaborativeCursor render - user:', user.userName, 'mousePosition:', user.mousePosition, 'hasContainer:', !!containerRef.current);
   if (!user.mousePosition || !containerRef.current) {
-    console.log('CollaborativeCursor retornou null - mousePosition:', user.mousePosition, 'containerRef:', !!containerRef.current);
     return null;
   }
 
   const { x, y } = user.mousePosition;
-  console.log('Renderizando cursor para', user.userName, 'na posição', { x, y });
 
   return (
-    <div 
+    <div
       className="collaborative-cursor"
       style={{
         left: `${x}%`,
@@ -24,10 +21,10 @@ const CollaborativeCursor = ({ user, containerRef }) => {
       }}
     >
       {/* Cursor SVG */}
-      <svg 
-        width="32" 
-        height="32" 
-        viewBox="0 0 32 32" 
+      <svg
+        width="32"
+        height="32"
+        viewBox="0 0 32 32"
         fill="none"
         style={{
           filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))'
@@ -41,9 +38,9 @@ const CollaborativeCursor = ({ user, containerRef }) => {
           strokeLinejoin="round"
         />
       </svg>
-      
+
       {/* Badge com nome */}
-      <div 
+      <div
         className="cursor-label"
         style={{
           backgroundColor: user.cursorColor || '#FF6B6B',

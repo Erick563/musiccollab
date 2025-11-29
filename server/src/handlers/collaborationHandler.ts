@@ -70,7 +70,6 @@ export const setupCollaborationHandlers = (io: Server) => {
   });
 
   io.on('connection', (socket: SocketWithUser) => {
-    console.log(`Usuário conectado: ${socket.user?.name} (${socket.id})`);
 
     // Entrar em um projeto (sala)
     socket.on('join-project', async (projectId: string) => {
@@ -157,7 +156,6 @@ export const setupCollaborationHandlers = (io: Server) => {
             userId: socket.user!.id,
             socketId: oldSocketId
           });
-          console.log(`Conexão antiga removida: ${socket.user!.name} (${oldSocketId})`);
         });
         
         // Adicionar nova conexão
@@ -207,22 +205,16 @@ export const setupCollaborationHandlers = (io: Server) => {
         // Solicitar estado atual do projeto de um usuário já conectado
         // Enviar para o primeiro usuário encontrado (exceto o novo usuário)
         const existingUsers = Array.from(room.users.values()).filter(u => u.socketId !== socket.id);
-        console.log(`========== NOVO USUÁRIO ENTROU: ${socket.user.name} ==========`);
-        console.log(`Usuários já conectados no projeto: ${existingUsers.length}`);
+
+        // Pedir ao primeiro usuário conectado para enviar seu estado
         if (existingUsers.length > 0) {
-          // Pedir ao primeiro usuário conectado para enviar seu estado
           const firstUser = existingUsers[0];
-          console.log(`Solicitando estado do projeto para ${firstUser.userName} (socket: ${firstUser.socketId})`);
-          console.log(`Estado será enviado para ${socket.user.name} (socket: ${socket.id})`);
           io.to(firstUser.socketId).emit('request-project-state', {
             forUserId: socket.user.id,
             forSocketId: socket.id
           });
-        } else {
-          console.log('Nenhum usuário conectado para fornecer estado inicial');
         }
 
-        console.log(`Usuário ${socket.user.name} entrou no projeto ${projectId}`);
       } catch (error) {
         console.error('Erro ao entrar no projeto:', error);
         socket.emit('error', { message: 'Erro ao entrar no projeto' });
@@ -257,7 +249,6 @@ export const setupCollaborationHandlers = (io: Server) => {
     // Atualizar posição do mouse
     socket.on('mouse-move', (data: { projectId: string; mousePosition: { x: number; y: number } }) => {
       const { projectId, mousePosition } = data;
-      console.log(`[mouse-move] Recebido de ${socket.user?.name} (${socket.id}) - projectId: ${projectId}, mousePosition:`, mousePosition);
       
       const room = projectRooms.get(projectId);
       
@@ -265,7 +256,6 @@ export const setupCollaborationHandlers = (io: Server) => {
         const user = room.users.get(socket.id);
         if (user) {
           user.mousePosition = mousePosition;
-          console.log(`[mouse-move] Posição do mouse atualizada para ${socket.user.name}:`, mousePosition);
         }
       }
       
@@ -275,7 +265,6 @@ export const setupCollaborationHandlers = (io: Server) => {
         socketId: socket.id,
         mousePosition
       });
-      console.log(`[mouse-move] Evento mouse-updated enviado para sala ${projectId}`);
     });
 
     // Solicitar bloqueio para editar uma track
@@ -327,7 +316,6 @@ export const setupCollaborationHandlers = (io: Server) => {
         userName: socket.user.name
       });
 
-      console.log(`Track ${trackId} bloqueada por ${socket.user.name}`);
     });
 
     // Liberar bloqueio de uma track
@@ -352,8 +340,6 @@ export const setupCollaborationHandlers = (io: Server) => {
     socket.on('track-added', (data: { projectId: string; track: any }) => {
       const { projectId, track } = data;
       
-      console.log(`[track-added] Recebido de ${socket.user?.name} (${socket.id}) - track: ${track.name}, projectId: ${projectId}`);
-      console.log(`[track-added] Socket está nas salas:`, Array.from(socket.rooms));
       
       // Propagar para outros usuários no projeto
       socket.to(projectId).emit('track-added', {
@@ -362,20 +348,15 @@ export const setupCollaborationHandlers = (io: Server) => {
         track
       });
       
-      console.log(`[track-added] Evento propagado para sala ${projectId}`);
       
       // Verificar quantos sockets estão na sala
       const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
-      console.log(`[track-added] Sockets na sala ${projectId}:`, socketsInRoom ? socketsInRoom.size : 0);
     });
 
     // Sincronizar atualização de track
     socket.on('track-updated', (data: { projectId: string; trackId: string | number; updates: any }) => {
       const { projectId, trackId, updates } = data;
       
-      console.log(`[track-updated] Recebido de ${socket.user?.name} (${socket.id}) - projectId: ${projectId}, trackId: ${trackId}`);
-      console.log(`[track-updated] Socket está nas salas:`, Array.from(socket.rooms));
-      console.log(`[track-updated] Propagando para sala ${projectId}...`);
       
       // Propagar para outros usuários no projeto
       const emittedData = {
@@ -386,18 +367,15 @@ export const setupCollaborationHandlers = (io: Server) => {
       };
       
       socket.to(projectId).emit('track-updated', emittedData);
-      console.log(`[track-updated] Evento propagado:`, emittedData);
       
       // Verificar quantos sockets estão na sala
       const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
-      console.log(`[track-updated] Sockets na sala ${projectId}:`, socketsInRoom ? socketsInRoom.size : 0);
     });
 
     // Sincronizar deleção de track
     socket.on('track-deleted', (data: { projectId: string; trackId: string | number }) => {
       const { projectId, trackId } = data;
       
-      console.log(`Track ${trackId} deletada por ${socket.user?.name}`);
       
       // Propagar para outros usuários no projeto
       socket.to(projectId).emit('track-deleted', {
@@ -411,12 +389,7 @@ export const setupCollaborationHandlers = (io: Server) => {
     socket.on('send-project-state', (data: { forSocketId: string; projectState: any }) => {
       const { forSocketId, projectState } = data;
       
-      console.log(`========== RECEBIDO ESTADO DO PROJETO ==========`);
-      console.log(`De: ${socket.user?.name} (${socket.id})`);
-      console.log(`Para: socket ${forSocketId}`);
-      console.log(`Tracks no estado: ${projectState?.tracks?.length || 0}`);
       if (projectState?.tracks) {
-        console.log(`Tracks:`, projectState.tracks.map((t: any) => ({ id: t.id, name: t.name })));
       }
       
       // Enviar estado apenas para o usuário específico
@@ -426,7 +399,6 @@ export const setupCollaborationHandlers = (io: Server) => {
         projectState
       });
       
-      console.log(`Estado enviado para socket ${forSocketId}`);
     });
 
     // Desconexão
@@ -456,7 +428,6 @@ export const setupCollaborationHandlers = (io: Server) => {
       // Notificar outros usuários
       socket.to(projectId).emit('track-unlocked', { trackId });
 
-      console.log(`Track ${trackId} desbloqueada`);
     }
   }
 
@@ -487,13 +458,11 @@ export const setupCollaborationHandlers = (io: Server) => {
       }
 
       socket.leave(projectId);
-      console.log(`Usuário ${socket.user.name} saiu do projeto ${projectId}`);
     }
   }
 
   // Função auxiliar para desconexão
   function handleDisconnect(socket: SocketWithUser) {
-    console.log(`Usuário desconectado: ${socket.user?.name} (${socket.id})`);
 
     // Encontrar todas as salas em que o usuário estava
     const userRooms = Array.from(socket.rooms).filter(room => room !== socket.id);

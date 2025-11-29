@@ -13,14 +13,11 @@ class CollaborationService {
 
   // Conectar ao WebSocket
   connect(token) {
-    console.log('CollaborationService.connect chamado - socket existe:', !!this.socket, 'socket conectado:', this.socket?.connected);
     
     if (this.socket && this.socket.connected) {
-      console.log('Retornando socket existente');
       return this.socket;
     }
 
-    console.log('Criando novo socket para:', SOCKET_URL);
     this.socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
@@ -41,7 +38,6 @@ class CollaborationService {
       console.error('❌ Erro no socket:', error);
     });
 
-    console.log('Socket criado. Conectado imediatamente?', this.socket.connected);
     return this.socket;
   }
 
@@ -88,14 +84,12 @@ class CollaborationService {
 
   // Atualizar posição do mouse
   updateMousePosition(projectId, mousePosition) {
-    console.log('CollaborationService.updateMousePosition - this.socket:', !!this.socket, 'connected:', this.socket?.connected);
     
     if (!this.socket || !this.socket.connected) {
       console.warn('CollaborationService: Socket não conectado ao enviar mouse position - socket exists:', !!this.socket, 'connected:', this.socket?.connected);
       return;
     }
 
-    console.log('CollaborationService: Emitindo mouse-move:', { projectId, mousePosition });
     this.socket.emit('mouse-move', { projectId, mousePosition });
   }
 
@@ -155,7 +149,6 @@ class CollaborationService {
       return;
     }
 
-    console.log('CollaborationService: Enviando track-added:', { projectId, trackName: track.name });
     this.socket.emit('track-added', { projectId, track });
   }
 
@@ -166,7 +159,6 @@ class CollaborationService {
       return;
     }
 
-    console.log('Enviando notificação de track atualizada:', { projectId, trackId, updates });
     this.socket.emit('track-updated', { projectId, trackId, updates });
   }
 
@@ -187,7 +179,6 @@ class CollaborationService {
       return;
     }
 
-    console.log('CollaborationService: Enviando estado do projeto para socket:', forSocketId);
     this.socket.emit('send-project-state', { forSocketId, projectState });
   }
 
@@ -197,12 +188,9 @@ class CollaborationService {
       console.warn('⚠️ Socket não inicializado ao tentar registrar evento:', event);
       return;
     }
-
-    console.log('📝 CollaborationService: Registrando handler para evento:', event, '- Socket conectado?', this.socket.connected);
     
     // Criar um wrapper que loga quando o evento é recebido
     const wrappedHandler = (data) => {
-      console.log(`📨 CollaborationService: Evento '${event}' recebido:`, data);
       handler(data);
     };
     
@@ -220,8 +208,6 @@ class CollaborationService {
     if (!this.socket) {
       return;
     }
-
-    console.log('CollaborationService: Removendo handler para evento:', event);
 
     // Remover do registro e do socket
     if (this.eventHandlers.has(event)) {
@@ -246,8 +232,6 @@ class CollaborationService {
     if (!this.socket) {
       return;
     }
-
-    console.log('CollaborationService: Removendo todos os listeners');
 
     this.eventHandlers.forEach((handlers, event) => {
       handlers.forEach(handlerObj => {

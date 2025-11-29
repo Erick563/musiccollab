@@ -21,7 +21,6 @@ const StudioPage = () => {
   const {
     isConnected,
     onlineUsers,
-    lockedTracks,
     joinProject,
     leaveProject,
     updateMousePosition,
@@ -36,7 +35,7 @@ const StudioPage = () => {
     on,
     off
   } = useCollaboration();
-  
+
   const [tracks, setTracks] = useState([]);
   const [selectedTrack, setSelectedTrack] = useState(null);
   const [projectName, setProjectName] = useState('Novo Projeto');
@@ -124,12 +123,12 @@ const StudioPage = () => {
       playbackIntervalRef.current = setInterval(() => {
         setCurrentTime(prev => {
           const newTime = prev + 0.1;
-          
+
           if (newTime >= duration) {
             setIsPlaying(false);
             return 0;
           }
-          
+
           return newTime;
         });
       }, 100);
@@ -158,18 +157,18 @@ const StudioPage = () => {
   const handleFileUpload = async (file) => {
     try {
       showToast('Carregando áudio...', 'info');
-      
+
       const tempUrl = URL.createObjectURL(file);
       const audio = new Audio(tempUrl);
-      
+
       audio.addEventListener('loadedmetadata', async () => {
         const trackDuration = audio.duration;
-        
+
         try {
           const reader = new FileReader();
           reader.onloadend = async () => {
             const audioUrl = reader.result;
-            
+
             const tempId = Date.now();
             const newTrack = {
               id: tempId,
@@ -193,23 +192,23 @@ const StudioPage = () => {
             // Adicionar track temporariamente ao estado local
             setTracks(prevTracks => {
               const updatedTracks = [...prevTracks, newTrack];
-              
+
               const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
               setDuration(maxDur);
-              
+
               return updatedTracks;
             });
-            
+
             if (!selectedTrack) {
               setSelectedTrack(newTrack);
             }
-            
+
             // AUTO-SAVE: Salvar imediatamente no banco de dados
             const projectIdToUse = currentProjectId || projectId;
-            
+
             if (projectIdToUse) {
               showToast('Áudio carregado! Salvando automaticamente...', 'info');
-              
+
               try {
                 const trackData = {
                   name: newTrack.name,
@@ -219,21 +218,19 @@ const StudioPage = () => {
                   color: newTrack.color
                 };
 
-                console.log('Auto-save: Salvando track no projeto', projectIdToUse);
-                
+
                 // Fazer upload da track para o servidor
                 const uploadedTrack = await trackService.createTrack(projectIdToUse, file, trackData);
-                
-                console.log('Auto-save: Track criada com ID:', uploadedTrack.id);
-                
+
+
                 // Atualizar duração
                 await trackService.updateTrack(uploadedTrack.id, { duration: Math.floor(trackDuration) });
 
                 // Atualizar estado local com o ID real do banco
                 let updatedTracks = [];
                 setTracks(prevTracks => {
-                  updatedTracks = prevTracks.map(t => 
-                    t.id === tempId 
+                  updatedTracks = prevTracks.map(t =>
+                    t.id === tempId
                       ? { ...t, id: uploadedTrack.id, trackId: uploadedTrack.id }
                       : t
                   );
@@ -244,7 +241,6 @@ const StudioPage = () => {
                 await new Promise(resolve => setTimeout(resolve, 100));
 
                 // Salvar estado completo do projeto
-                console.log('Auto-save: Salvando estado do projeto...');
                 const projectState = {
                   tracks: updatedTracks.map(track => ({
                     id: track.id,
@@ -273,7 +269,6 @@ const StudioPage = () => {
                 };
 
                 await projectService.updateProject(projectIdToUse, projectData);
-                console.log('Auto-save: Estado do projeto salvo');
 
                 // Notificar outros usuários sobre a nova track SALVA
                 const trackForSync = {
@@ -289,8 +284,7 @@ const StudioPage = () => {
                   color: newTrack.color,
                   isTemporary: false
                 };
-                
-                console.log('Auto-save: Notificando outros usuários sobre nova track');
+
                 notifyTrackAdded(trackForSync);
 
                 showToast('Track salva e sincronizada com sucesso!', 'success');
@@ -301,22 +295,22 @@ const StudioPage = () => {
             } else {
               showToast('Áudio carregado! Crie ou abra um projeto para compartilhar.', 'warning');
             }
-            
+
             URL.revokeObjectURL(tempUrl);
           };
-          
+
           reader.onerror = () => {
             showToast('Erro ao processar arquivo de áudio', 'error');
             URL.revokeObjectURL(tempUrl);
           };
-          
+
           reader.readAsDataURL(file);
         } catch (error) {
           showToast('Erro ao processar arquivo de áudio', 'error');
           URL.revokeObjectURL(tempUrl);
         }
       });
-      
+
       audio.addEventListener('error', () => {
         showToast('Erro ao carregar arquivo de áudio', 'error');
         URL.revokeObjectURL(tempUrl);
@@ -334,18 +328,18 @@ const StudioPage = () => {
   // Gerar cor única baseada no ID do usuário (consistente entre sessões)
   const getUserColor = (userId) => {
     const colors = [
-      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
       '#FFEAA7', '#A29BFE', '#FD79A8', '#74B9FF',
       '#55EFC4', '#FF7675', '#FDCB6E', '#E17055',
       '#D63031', '#00B894', '#00CEC9', '#0984E3'
     ];
-    
+
     // Usar hash simples do userId para escolher cor consistente
     let hash = 0;
     for (let i = 0; i < userId.length; i++) {
       hash = userId.charCodeAt(i) + ((hash << 5) - hash);
     }
-    
+
     return colors[Math.abs(hash) % colors.length];
   };
 
@@ -354,23 +348,23 @@ const StudioPage = () => {
   };
 
   const handleTrackDelete = useCallback((trackId) => {
-      setTracks(prevTracks => {
-        const updatedTracks = prevTracks.filter(t => t.id !== trackId);
-        
-        if (selectedTrack?.id === trackId) {
-          setSelectedTrack(updatedTracks[0] || null);
-        }
-        
-        if (updatedTracks.length > 0) {
+    setTracks(prevTracks => {
+      const updatedTracks = prevTracks.filter(t => t.id !== trackId);
+
+      if (selectedTrack?.id === trackId) {
+        setSelectedTrack(updatedTracks[0] || null);
+      }
+
+      if (updatedTracks.length > 0) {
         const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
         setDuration(maxDur);
       } else {
         setDuration(0);
       }
-      
+
       return updatedTracks;
     });
-    
+
     // Notificar outros usuários sobre a deleção
     if (currentProjectId) {
       notifyTrackDeleted(trackId);
@@ -388,8 +382,8 @@ const StudioPage = () => {
     const isSoloChange = updates.solo !== undefined && Object.keys(updates).length === 1;
     const isVolumeChange = updates.volume !== undefined && Object.keys(updates).length === 1;
     const isPanChange = updates.pan !== undefined && Object.keys(updates).length === 1;
-    const isMinorChange = updates.selectedRegion !== undefined || isPositionChange || 
-                          isMuteChange || isSoloChange || isVolumeChange || isPanChange;
+    const isMinorChange = updates.selectedRegion !== undefined || isPositionChange ||
+      isMuteChange || isSoloChange || isVolumeChange || isPanChange;
 
     // Verificar se a track está bloqueada por outro usuário (apenas para mudanças importantes)
     if (!isMinorChange && isTrackLocked(trackId) && editingTrackId !== trackId) {
@@ -411,8 +405,8 @@ const StudioPage = () => {
     }
 
     // Atualizar estado local imediatamente
-    setTracks(prevTracks => 
-      prevTracks.map(track => 
+    setTracks(prevTracks =>
+      prevTracks.map(track =>
         track.id === trackId ? { ...track, ...updates } : track
       )
     );
@@ -471,7 +465,7 @@ const StudioPage = () => {
       toastShownRef.current = false;
       loadingCancelledRef.current = false;
     }
-    
+
     // Marca como não cancelado para esta execução
     loadingCancelledRef.current = false;
 
@@ -488,34 +482,34 @@ const StudioPage = () => {
       if (loadedProjectIdRef.current === projectId && toastShownRef.current) {
         return;
       }
-      
+
       // Marca imediatamente para prevenir execuções duplicadas
       if (loadedProjectIdRef.current === projectId) {
         return;
       }
-      
+
       // Marca o projeto como sendo carregado ANTES de começar
       loadedProjectIdRef.current = projectId;
 
       try {
         setIsLoading(true);
         const project = await projectService.getProject(projectId);
-        
+
         if (loadingCancelledRef.current) return;
-        
+
         setCurrentProjectId(project.id);
         setProjectName(project.title || 'Novo Projeto');
         setProjectOwner(project.owner);
-        
+
         const dbTracks = await trackService.getProjectTracks(project.id);
-        
+
         if (loadingCancelledRef.current) return;
-        
+
         const restoredTracks = await Promise.all(
           dbTracks.map(async (dbTrack) => {
             try {
               const audioUrl = await trackService.getTrackAudio(dbTrack.id);
-              
+
               return {
                 id: dbTrack.id,
                 trackId: dbTrack.id,
@@ -534,19 +528,19 @@ const StudioPage = () => {
             }
           })
         );
-        
+
         if (loadingCancelledRef.current) return;
-        
+
         const validTracks = restoredTracks.filter(t => t !== null);
-        
+
         // Aplicar estado salvo do projeto
         if (project.state) {
           const state = project.state;
-          
+
           if (state.tracks && state.tracks.length > 0) {
             const mergedTracks = validTracks.map(dbTrack => {
               const stateTrack = state.tracks.find(st => st.trackId === dbTrack.trackId || st.id === dbTrack.id);
-              
+
               if (stateTrack) {
                 return {
                   ...dbTrack,
@@ -562,47 +556,44 @@ const StudioPage = () => {
                   isSegment: false
                 };
               }
-              
+
               return dbTrack;
             });
-            
+
             setTracks(mergedTracks);
           } else {
             setTracks(validTracks);
           }
-          
+
           if (state.masterVolume !== undefined) {
             setMasterVolume(state.masterVolume);
           }
-          
+
           if (state.zoom !== undefined) {
             setZoom(state.zoom);
           }
-          
+
           if (state.currentTime !== undefined) {
             setCurrentTime(state.currentTime);
           }
         } else {
           setTracks(validTracks);
         }
-        
+
         // Aguardar sincronização de estado de outros usuários (se houver)
         // Esperar até 2 segundos por estado sincronizado
-        console.log('StudioPage: Aguardando estado sincronizado de outros usuários...');
         waitingForSyncRef.current = true;
         hasSyncedStateRef.current = false;
-        
+
         await new Promise(resolve => {
           const timeout = setTimeout(() => {
-            console.log('StudioPage: Timeout - nenhum estado sincronizado recebido');
             waitingForSyncRef.current = false;
             resolve(null);
           }, 2000);
-          
+
           // Verificar periodicamente se recebeu estado sincronizado
           const checkInterval = setInterval(() => {
             if (hasSyncedStateRef.current) {
-              console.log('StudioPage: Estado sincronizado recebido!');
               clearTimeout(timeout);
               clearInterval(checkInterval);
               waitingForSyncRef.current = false;
@@ -610,7 +601,7 @@ const StudioPage = () => {
             }
           }, 100);
         });
-        
+
         // Marca o projeto como carregado e mostra o toast apenas uma vez
         // Verifica se ainda é o mesmo projeto que começamos a carregar
         if (!loadingCancelledRef.current && loadedProjectIdRef.current === projectId && !toastShownRef.current) {
@@ -619,7 +610,7 @@ const StudioPage = () => {
         }
       } catch (error) {
         if (loadingCancelledRef.current) return;
-        
+
         // Só reseta se ainda for o mesmo projeto que começamos a carregar
         if (loadedProjectIdRef.current === projectId) {
           loadedProjectIdRef.current = null;
@@ -645,29 +636,25 @@ const StudioPage = () => {
     };
 
     loadProject();
-    
+
     // Cleanup function para cancelar operações pendentes
     return () => {
       loadingCancelledRef.current = true;
     };
-  }, [projectId]);
+  }, [projectId, navigate, showToast]);
 
   // Registrar listeners de sincronização ANTES de qualquer outra coisa
   useEffect(() => {
-    console.log('StudioPage: Registrando listeners globais de sincronização de estado');
-    
+
     const handleRequestProjectState = (data) => {
-      console.log('StudioPage: ========== RECEBIDA SOLICITAÇÃO DE ESTADO ==========');
-      console.log('StudioPage: Socket solicitante:', data.forSocketId);
-      console.log('StudioPage: Tracks atuais:', tracksRef.current.length);
-      
+
       // Usar refs para obter o estado mais recente
       const currentTracks = tracksRef.current;
       const currentMasterVolume = masterVolumeRef.current;
       const currentZoom = zoomRef.current;
       const currentCurrentTime = currentTimeRef.current;
       const currentDuration = durationRef.current;
-      
+
       // Criar um snapshot simplificado das tracks (sem arquivos/blobs grandes)
       const projectState = {
         tracks: currentTracks.map(track => ({
@@ -692,41 +679,33 @@ const StudioPage = () => {
         currentTime: currentCurrentTime,
         duration: currentDuration
       };
-      
-      console.log('StudioPage: Enviando estado com', projectState.tracks.length, 'tracks');
+
       sendProjectState(data.forSocketId, projectState);
     };
 
     const handleReceiveProjectState = (data) => {
-      console.log('StudioPage: ========== RECEBIDO ESTADO DO PROJETO ==========');
-      console.log('StudioPage: De:', data.fromUserName);
       const { projectState } = data;
-      
+
       if (!projectState || !projectState.tracks) {
         console.warn('Estado do projeto inválido recebido');
         return;
       }
 
-      console.log('StudioPage: Estado recebido contém', projectState.tracks.length, 'tracks');
-      console.log('StudioPage: Tracks recebidas:', projectState.tracks.map(t => ({ id: t.id, name: t.name })));
-      console.log('StudioPage: waitingForSync:', waitingForSyncRef.current);
 
       // Marcar que recebemos estado sincronizado
       hasSyncedStateRef.current = true;
 
       // Aplicar o estado recebido
       setTracks(prevTracks => {
-        console.log('StudioPage: Tracks locais antes da mesclagem:', prevTracks.length);
-        
+
         // Criar um mapa das tracks existentes por ID
         const existingTracksMap = new Map(prevTracks.map(t => [t.id, t]));
-        
+
         // Mesclar tracks: manter as que têm arquivos, adicionar novas do estado recebido
         const mergedTracks = projectState.tracks.map(receivedTrack => {
           const existingTrack = existingTracksMap.get(receivedTrack.id);
-          
+
           if (existingTrack) {
-            console.log('StudioPage: Track', receivedTrack.name, 'já existe, mesclando');
             // Se já existe, atualizar com os dados recebidos mas manter arquivo/url
             return {
               ...existingTrack,
@@ -735,7 +714,6 @@ const StudioPage = () => {
               file: existingTrack.file
             };
           } else {
-            console.log('StudioPage: Track', receivedTrack.name, 'é nova, adicionando');
             // Se não existe, adicionar como nova track
             // Se for temporária (não salva), não terá url/file
             return {
@@ -746,16 +724,14 @@ const StudioPage = () => {
             };
           }
         });
-        
+
         // Adicionar tracks que existem localmente mas não foram recebidas
         prevTracks.forEach(track => {
           if (!projectState.tracks.find(t => t.id === track.id)) {
-            console.log('StudioPage: Track local', track.name, 'não está no estado recebido, mantendo');
             mergedTracks.push(track);
           }
         });
-        
-        console.log('StudioPage: Total de tracks após mesclagem:', mergedTracks.length);
+
         return mergedTracks;
       });
 
@@ -766,7 +742,7 @@ const StudioPage = () => {
       if (projectState.zoom !== undefined) {
         setZoom(projectState.zoom);
       }
-      
+
       showToast(`Estado sincronizado com ${data.fromUserName}`, 'info', 2000);
     };
 
@@ -774,7 +750,6 @@ const StudioPage = () => {
     on('receive-project-state', handleReceiveProjectState);
 
     return () => {
-      console.log('StudioPage: Removendo listeners globais de sincronização de estado');
       off('request-project-state', handleRequestProjectState);
       off('receive-project-state', handleReceiveProjectState);
     };
@@ -782,20 +757,17 @@ const StudioPage = () => {
 
   // Entrar/sair do projeto via WebSocket para colaboração
   useEffect(() => {
-    console.log('StudioPage useEffect [currentProjectId, user] - currentProjectId:', currentProjectId, 'user:', user?.name);
     if (currentProjectId && user) {
-      console.log('StudioPage: Chamando joinProject com:', currentProjectId);
       joinProject(currentProjectId);
-      
+
       return () => {
-        console.log('StudioPage: Cleanup - chamando leaveProject');
         leaveProject(currentProjectId);
-        
+
         // Liberar bloqueio se estiver editando
         if (editingTrackId) {
           releaseLock(editingTrackId);
         }
-        
+
         // Limpar timers pendentes
         if (notificationTimerRef.current) {
           clearTimeout(notificationTimerRef.current);
@@ -805,26 +777,22 @@ const StudioPage = () => {
         }
       };
     }
-  }, [currentProjectId, user, joinProject, leaveProject]);
+  }, [currentProjectId, user, joinProject, leaveProject, editingTrackId, releaseLock]);
 
   // Detectar quando o container está pronto
   useEffect(() => {
     if (studioContentRef.current && !isContainerReady) {
-      console.log('Container do studio está pronto!');
       setIsContainerReady(true);
     }
-  });
+  }, [isContainerReady]);
 
   // Trackear movimento do mouse para cursor colaborativo
   useEffect(() => {
-    console.log('Mouse tracking effect - currentProjectId:', currentProjectId, 'isConnected:', isConnected, 'hasContainer:', !!studioContentRef.current, 'isContainerReady:', isContainerReady);
-    
+
     if (!currentProjectId || !isConnected || !studioContentRef.current || !isContainerReady) {
-      console.log('Mouse tracking não ativado - condições não satisfeitas');
       return;
     }
 
-    console.log('✅ Ativando tracking de mouse...');
 
     const handleMouseMove = (e) => {
       const container = studioContentRef.current;
@@ -841,7 +809,6 @@ const StudioPage = () => {
 
       mouseThrottleRef.current = setTimeout(() => {
         if (x >= 0 && x <= 100 && y >= 0 && y <= 100) {
-          console.log('Enviando posição do mouse:', { x, y });
           updateMousePosition({ x, y });
         }
       }, 50);
@@ -849,10 +816,8 @@ const StudioPage = () => {
 
     const container = studioContentRef.current;
     container.addEventListener('mousemove', handleMouseMove);
-    console.log('✅ Event listener adicionado ao container');
 
     return () => {
-      console.log('Removendo event listener do container');
       container.removeEventListener('mousemove', handleMouseMove);
       if (mouseThrottleRef.current) {
         clearTimeout(mouseThrottleRef.current);
@@ -863,38 +828,34 @@ const StudioPage = () => {
 
   // Escutar eventos de sincronização de tracks
   useEffect(() => {
-    console.log('StudioPage: Registrando handlers de sincronização. currentProjectId:', currentProjectId, 'isConnected:', isConnected);
     if (!currentProjectId || !isConnected) {
-      console.log('StudioPage: Não registrando handlers - aguardando conexão');
       return;
     }
 
     // Handler para quando uma track é adicionada por outro usuário
     const handleTrackAdded = async (data) => {
-      console.log('Track adicionada por outro usuário:', data);
       const { track, userName } = data;
-      
+
       // Verificar se a track já existe (evitar duplicação)
       const trackExists = tracksRef.current.some(t => t.id === track.id);
       if (trackExists) {
-        console.log('Track já existe, ignorando');
         return;
       }
-      
+
       // Se a track não é temporária (foi salva), carregar do servidor
       if (!track.isTemporary && track.trackId) {
         try {
           showToast(`${userName} adicionou "${track.name}". Carregando...`, 'info');
-          
+
           // Buscar o áudio do servidor
           const audioUrl = await trackService.getTrackAudio(track.trackId);
-          
+
           const trackToAdd = {
             ...track,
             url: audioUrl,
             file: null
           };
-          
+
           setTracks(prevTracks => [...prevTracks, trackToAdd]);
           showToast(`"${track.name}" carregada com sucesso!`, 'success');
         } catch (error) {
@@ -910,7 +871,7 @@ const StudioPage = () => {
           isTemporary: true,
           isPlaceholder: true
         };
-        
+
         setTracks(prevTracks => [...prevTracks, trackToAdd]);
         showToast(`${userName} adicionou "${track.name}" (carregando...)`, 'info');
       }
@@ -918,20 +879,19 @@ const StudioPage = () => {
 
     // Handler para quando uma track é atualizada por outro usuário
     const handleTrackUpdated = (data) => {
-      console.log('Track atualizada por outro usuário:', data);
       const { trackId, updates, userName } = data;
-      
+
       setTracks(prevTracks => {
-        const updatedTracks = prevTracks.map(track => 
+        const updatedTracks = prevTracks.map(track =>
           track.id === trackId ? { ...track, ...updates } : track
         );
-        
+
         // Recalcular duração se a posição mudou
         if (updates.startTime !== undefined && updatedTracks.length > 0) {
           const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
           setDuration(maxDur);
         }
-        
+
         // Mostrar toast apenas para mudanças significativas
         // Usar prevTracks para evitar problemas de closure
         if (updates.name) {
@@ -946,16 +906,15 @@ const StudioPage = () => {
         } else {
           showToast(`${userName} editou uma faixa`, 'info', 2000);
         }
-        
+
         return updatedTracks;
       });
     };
 
     // Handler para quando uma track é deletada por outro usuário
     const handleTrackDeleted = (data) => {
-      console.log('Track deletada por outro usuário:', data);
       const { trackId, userName } = data;
-      
+
       setTracks(prevTracks => {
         const track = prevTracks.find(t => t.id === trackId);
         if (track) {
@@ -963,21 +922,18 @@ const StudioPage = () => {
         }
         return prevTracks.filter(t => t.id !== trackId);
       });
-      
+
       // Se a track deletada era a selecionada, limpar seleção
       setSelectedTrack(prev => prev?.id === trackId ? null : prev);
     };
 
     // Registrar listeners
-    console.log('StudioPage: Registrando listeners para track-added, track-updated, track-deleted');
     on('track-added', handleTrackAdded);
     on('track-updated', handleTrackUpdated);
     on('track-deleted', handleTrackDeleted);
-    console.log('StudioPage: Listeners registrados com sucesso');
 
     // Cleanup: remover listeners
     return () => {
-      console.log('StudioPage: Removendo listeners de sincronização');
       off('track-added', handleTrackAdded);
       off('track-updated', handleTrackUpdated);
       off('track-deleted', handleTrackDeleted);
@@ -988,29 +944,29 @@ const StudioPage = () => {
     try {
       const response = await fetch(track.url);
       const arrayBuffer = await response.arrayBuffer();
-      
+
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      
+
       const sampleRate = audioBuffer.sampleRate;
       const numberOfChannels = audioBuffer.numberOfChannels;
       const deletedRegions = track.deletedRegions || [];
-      
+
       let workingBuffer = audioBuffer;
       if (track.isSegment) {
         const trimStart = track.trimStart || 0;
         const trimEnd = track.trimEnd || audioBuffer.duration;
-        
+
         const startSample = Math.floor(trimStart * sampleRate);
         const endSample = Math.floor(trimEnd * sampleRate);
-        
+
         const segmentLength = endSample - startSample;
         const segmentBuffer = audioContext.createBuffer(numberOfChannels, segmentLength, sampleRate);
-        
+
         for (let channel = 0; channel < numberOfChannels; channel++) {
           const sourceData = audioBuffer.getChannelData(channel);
           const destData = segmentBuffer.getChannelData(channel);
-          
+
           for (let i = 0; i < segmentLength; i++) {
             const sourceIndex = startSample + i;
             if (sourceIndex < sourceData.length) {
@@ -1018,15 +974,15 @@ const StudioPage = () => {
             }
           }
         }
-        
+
         workingBuffer = segmentBuffer;
       }
-      
+
       let finalBuffer = workingBuffer;
       if (deletedRegions.length > 0) {
         const bufferLength = workingBuffer.length;
         const bufferDuration = workingBuffer.duration;
-        
+
         const trimStart = track.isSegment ? (track.trimStart || 0) : 0;
         const relevantRegions = deletedRegions
           .filter(region => {
@@ -1039,22 +995,22 @@ const StudioPage = () => {
             end: Math.min(bufferLength, Math.floor((region.end - trimStart) * sampleRate))
           }))
           .sort((a, b) => a.start - b.start);
-        
+
         if (relevantRegions.length > 0) {
           let totalLength = bufferLength;
           for (const region of relevantRegions) {
             totalLength -= (region.end - region.start);
           }
-          
+
           const cleanedBuffer = audioContext.createBuffer(numberOfChannels, totalLength, sampleRate);
-          
+
           for (let channel = 0; channel < numberOfChannels; channel++) {
             const sourceData = workingBuffer.getChannelData(channel);
             const destData = cleanedBuffer.getChannelData(channel);
-            
+
             let destIndex = 0;
             let sourceIndex = 0;
-            
+
             for (const region of relevantRegions) {
               const beforeLength = region.start - sourceIndex;
               for (let i = 0; i < beforeLength; i++) {
@@ -1062,30 +1018,30 @@ const StudioPage = () => {
               }
               sourceIndex = region.end;
             }
-            
+
             while (sourceIndex < bufferLength && destIndex < totalLength) {
               destData[destIndex++] = sourceData[sourceIndex++];
             }
           }
-          
+
           finalBuffer = cleanedBuffer;
         }
       }
-      
+
       const bufferToWav = (buffer) => {
         const length = buffer.length;
         const bytesPerSample = 2;
         const blockAlign = numberOfChannels * bytesPerSample;
-        
+
         const wavBuffer = new ArrayBuffer(44 + length * blockAlign);
         const view = new DataView(wavBuffer);
-        
+
         const writeString = (offset, string) => {
           for (let i = 0; i < string.length; i++) {
             view.setUint8(offset + i, string.charCodeAt(i));
           }
         };
-        
+
         writeString(0, 'RIFF');
         view.setUint32(4, 36 + length * blockAlign, true);
         writeString(8, 'WAVE');
@@ -1099,7 +1055,7 @@ const StudioPage = () => {
         view.setUint16(34, bytesPerSample * 8, true);
         writeString(36, 'data');
         view.setUint32(40, length * blockAlign, true);
-        
+
         const offset = 44;
         for (let i = 0; i < length; i++) {
           for (let channel = 0; channel < numberOfChannels; channel++) {
@@ -1108,16 +1064,16 @@ const StudioPage = () => {
             view.setInt16(offset + (i * blockAlign) + (channel * bytesPerSample), int16, true);
           }
         }
-        
+
         return new Blob([wavBuffer], { type: 'audio/wav' });
       };
-      
+
       const wavBlob = bufferToWav(finalBuffer);
       const fileName = `${track.name.replace(/[^a-z0-9]/gi, '_')}_segment.wav`;
       const file = new File([wavBlob], fileName, { type: 'audio/wav' });
-      
+
       audioContext.close();
-      
+
       return file;
     } catch (error) {
       throw error;
@@ -1160,7 +1116,7 @@ const StudioPage = () => {
 
       for (const track of tracks) {
         try {
-          const needsProcessing = track.isSegment || 
+          const needsProcessing = track.isSegment ||
             (track.deletedRegions && track.deletedRegions.length > 0) ||
             (track.trimStart !== null && track.trimStart > 0) ||
             (track.trimEnd !== null);
@@ -1170,7 +1126,7 @@ const StudioPage = () => {
               name: track.name,
               duration: Math.floor(track.duration)
             });
-            
+
             tracksToKeep.add(track.trackId);
             processedTracks.push({
               ...track,
@@ -1182,7 +1138,7 @@ const StudioPage = () => {
 
           let audioFile = track.file;
           let trackName = track.name;
-          
+
           if (needsProcessing) {
             showToast(`Processando ${track.isSegment ? 'segmento' : 'faixa'}: ${track.name}...`, 'info');
             audioFile = await processAudioSegment(track);
@@ -1204,7 +1160,7 @@ const StudioPage = () => {
           };
 
           const uploadedTrack = await trackService.createTrack(projectId, audioFile, trackData);
-          
+
           if (track.duration) {
             await trackService.updateTrack(uploadedTrack.id, { duration: Math.floor(track.duration) });
           }
@@ -1299,25 +1255,25 @@ const StudioPage = () => {
     if (!deletedRegions || deletedRegions.length === 0) {
       return trimStart + timelineTime;
     }
-    
+
     const sortedRegions = [...deletedRegions].sort((a, b) => a.start - b.start);
-    
+
     let accumulatedTime = 0;
     let audioPosition = trimStart;
-    
+
     for (const region of sortedRegions) {
       const distanceToRegion = region.start - audioPosition;
-      
+
       if (accumulatedTime + distanceToRegion >= timelineTime) {
         const remaining = timelineTime - accumulatedTime;
         const result = audioPosition + remaining;
         return result;
       }
-      
+
       accumulatedTime += distanceToRegion;
       audioPosition = region.end;
     }
-    
+
     const remaining = timelineTime - accumulatedTime;
     const result = audioPosition + remaining;
     return result;
@@ -1371,21 +1327,21 @@ const StudioPage = () => {
     const newDuration = track.duration - regionDuration;
 
     setTracks(prevTracks => {
-      const updated = prevTracks.map(t => 
-        t.id === trackId 
-          ? { 
-              ...t, 
-              deletedRegions: updatedDeletedRegions,
-              duration: newDuration
-            }
+      const updated = prevTracks.map(t =>
+        t.id === trackId
+          ? {
+            ...t,
+            deletedRegions: updatedDeletedRegions,
+            duration: newDuration
+          }
           : t
       );
-      
+
       if (updated.length > 0) {
         const maxDur = Math.max(...updated.map(t => (t.startTime || 0) + (t.duration || 0)));
         setDuration(maxDur);
       }
-      
+
       return updated;
     });
 
@@ -1428,18 +1384,18 @@ const StudioPage = () => {
     }
 
     let originalTrack = tracks.find(t => t.id === clipboard.trackId || t.trackId === clipboard.trackId);
-    
+
     if (originalTrack?.isSegment && originalTrack?.trackId) {
       const originalDbTrack = tracks.find(t => (t.id === originalTrack.trackId || t.trackId === originalTrack.trackId) && !t.isSegment);
       if (originalDbTrack) {
         originalTrack = originalDbTrack;
       }
     }
-    
+
     const originalTrackId = originalTrack?.trackId || originalTrack?.id || clipboard.trackId;
 
     const segmentDuration = clipboard.region.end - clipboard.region.start;
-    
+
     const newTrack = {
       id: Date.now(),
       trackId: originalTrackId,
@@ -1460,10 +1416,10 @@ const StudioPage = () => {
 
     setTracks(prevTracks => {
       const updatedTracks = [...prevTracks, newTrack];
-      
+
       const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
       setDuration(maxDur);
-      
+
       return updatedTracks;
     });
 
@@ -1479,11 +1435,11 @@ const StudioPage = () => {
 
       if (e.ctrlKey && e.key === 'c') {
         e.preventDefault();
-        
+
         const currentTrack = selectedTrackRef.current || selectedTrack;
         const trackFromArray = currentTrack ? tracks.find(t => t.id === currentTrack.id) : null;
         const trackToUse = trackFromArray || currentTrack;
-        
+
         if (trackToUse && trackToUse.selectedRegion) {
           handleCopyRegion(trackToUse.id, trackToUse.selectedRegion);
         } else {
@@ -1493,11 +1449,11 @@ const StudioPage = () => {
 
       if (e.ctrlKey && e.key === 'x') {
         e.preventDefault();
-        
+
         const currentTrack = selectedTrackRef.current || selectedTrack;
         const trackFromArray = currentTrack ? tracks.find(t => t.id === currentTrack.id) : null;
         const trackToUse = trackFromArray || currentTrack;
-        
+
         if (trackToUse && trackToUse.selectedRegion) {
           handleCutRegion(trackToUse.id, trackToUse.selectedRegion);
         } else {
@@ -1527,7 +1483,7 @@ const StudioPage = () => {
 
       if (e.key === 'Delete' && selectedTrack) {
         e.preventDefault();
-        
+
         if (selectedTrack.selectedRegion) {
           handleDeleteRegion(selectedTrack.id, selectedTrack.selectedRegion);
         } else {
@@ -1537,7 +1493,7 @@ const StudioPage = () => {
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
@@ -1546,10 +1502,10 @@ const StudioPage = () => {
   if (isLoading) {
     return (
       <div className="studio-page audacity-style">
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
           height: '100vh',
           flexDirection: 'column',
           gap: '20px'
@@ -1565,15 +1521,15 @@ const StudioPage = () => {
     <div className="studio-page audacity-style">
       <header className="studio-header">
         <div className="header-left">
-          <div 
-            className="logo" 
+          <div
+            className="logo"
             onClick={() => navigate('/dashboard')}
             title="Voltar ao Dashboard"
           >
             🎵 MusicCollab Studio
           </div>
-          <input 
-            type="text" 
+          <input
+            type="text"
             className="project-name-input"
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
@@ -1588,8 +1544,8 @@ const StudioPage = () => {
           </div>
         </div>
         <div className="header-right">
-          <button 
-            className="header-btn" 
+          <button
+            className="header-btn"
             onClick={handleSave}
             disabled={isSaving || isLoading}
           >
@@ -1607,21 +1563,21 @@ const StudioPage = () => {
 
       <div className="transport-bar">
         <div className="transport-controls">
-          <button 
+          <button
             className="transport-btn stop"
             onClick={handleStop}
             title="Stop"
           >
             ⏹
           </button>
-          <button 
+          <button
             className={`transport-btn play ${isPlaying ? 'playing' : ''}`}
             onClick={handlePlayPause}
             title={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? '⏸' : '▶'}
           </button>
-          <button 
+          <button
             className="transport-btn record"
             title="Record"
           >
@@ -1644,10 +1600,10 @@ const StudioPage = () => {
 
         <div className="master-controls">
           <label>Master Volume</label>
-          <input 
-            type="range" 
-            min="0" 
-            max="100" 
+          <input
+            type="range"
+            min="0"
+            max="100"
             value={masterVolume}
             onChange={(e) => setMasterVolume(e.target.value)}
             className="master-volume-slider"
@@ -1696,7 +1652,7 @@ const StudioPage = () => {
             <>
               <div className="sidebar-section">
                 <h3>Colaboração</h3>
-                <button 
+                <button
                   className="collaborators-btn"
                   onClick={() => setShowCollaboratorsPanel(true)}
                   title="Gerenciar colaboradores"
@@ -1776,7 +1732,7 @@ const StudioPage = () => {
               <div className="timeline-tracks">
                 {tracks.map(track => {
                   const hasSoloedTracks = tracks.some(t => t.solo);
-                  
+
                   return (
                     <TimelineTrack
                       key={track.id}
@@ -1802,7 +1758,7 @@ const StudioPage = () => {
         </main>
       </div>
 
-      <ExportModal 
+      <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
         projectName={projectName}

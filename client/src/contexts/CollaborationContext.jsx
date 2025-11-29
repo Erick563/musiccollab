@@ -21,16 +21,14 @@ export const CollaborationProvider = ({ children }) => {
   const socketRef = useRef(null);
   const currentProjectIdRef = useRef(null);
   const isConnectedRef = useRef(false);
-  
+
   // Manter refs sincronizados
   useEffect(() => {
     currentProjectIdRef.current = currentProjectId;
-    console.log('CollaborationContext: currentProjectId atualizado para:', currentProjectId);
   }, [currentProjectId]);
-  
+
   useEffect(() => {
     isConnectedRef.current = isConnected;
-    console.log('CollaborationContext: isConnected atualizado para:', isConnected);
   }, [isConnected]);
 
   // Conectar ao WebSocket quando o usuário estiver autenticado
@@ -39,7 +37,7 @@ export const CollaborationProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (token) {
         socketRef.current = collaborationService.connect(token);
-        
+
         // Eventos do socket
         collaborationService.on('connect', () => {
           setIsConnected(true);
@@ -71,19 +69,17 @@ export const CollaborationProvider = ({ children }) => {
         });
 
         collaborationService.on('cursor-updated', ({ userId, socketId, cursorPosition }) => {
-          console.log('cursor-updated', userId, socketId, cursorPosition);
-          setOnlineUsers(prev => prev.map(u => 
-            u.socketId === socketId 
-              ? { ...u, cursorPosition } 
+          setOnlineUsers(prev => prev.map(u =>
+            u.socketId === socketId
+              ? { ...u, cursorPosition }
               : u
           ));
         });
 
         collaborationService.on('mouse-updated', ({ userId, socketId, mousePosition }) => {
-          console.log('mouse-updated', userId, socketId, mousePosition);
-          setOnlineUsers(prev => prev.map(u => 
-            u.socketId === socketId 
-              ? { ...u, mousePosition } 
+          setOnlineUsers(prev => prev.map(u =>
+            u.socketId === socketId
+              ? { ...u, mousePosition }
               : u
           ));
         });
@@ -95,22 +91,22 @@ export const CollaborationProvider = ({ children }) => {
 
         collaborationService.on('track-locked', ({ trackId, userId, userName }) => {
           setLockedTracks(prev => [...prev, { trackId, userId, userName }]);
-          
+
           // Atualizar status do usuário
-          setOnlineUsers(prev => prev.map(u => 
-            u.userId === userId 
-              ? { ...u, isEditing: true, editingTrackId: trackId } 
+          setOnlineUsers(prev => prev.map(u =>
+            u.userId === userId
+              ? { ...u, isEditing: true, editingTrackId: trackId }
               : u
           ));
         });
 
         collaborationService.on('track-unlocked', ({ trackId }) => {
           setLockedTracks(prev => prev.filter(t => t.trackId !== trackId));
-          
+
           // Atualizar status dos usuários
-          setOnlineUsers(prev => prev.map(u => 
-            u.editingTrackId === trackId 
-              ? { ...u, isEditing: false, editingTrackId: undefined } 
+          setOnlineUsers(prev => prev.map(u =>
+            u.editingTrackId === trackId
+              ? { ...u, isEditing: false, editingTrackId: undefined }
               : u
           ));
         });
@@ -132,15 +128,13 @@ export const CollaborationProvider = ({ children }) => {
   // Quando o socket conectar/reconectar e houver um projeto ativo, entrar nele
   useEffect(() => {
     if (isConnected && currentProjectId) {
-      console.log('Socket conectado, entrando no projeto:', currentProjectId);
       collaborationService.joinProject(currentProjectId);
     }
   }, [isConnected, currentProjectId]);
 
   // Entrar em um projeto
   const joinProject = useCallback((projectId) => {
-    console.log('joinProject chamado - projectId:', projectId, 'isConnected:', isConnected);
-    
+
     // Setar o currentProjectId imediatamente, mesmo se o socket não estiver conectado ainda
     if (currentProjectId && currentProjectId !== projectId) {
       if (isConnected) {
@@ -149,7 +143,7 @@ export const CollaborationProvider = ({ children }) => {
     }
 
     setCurrentProjectId(projectId);
-    
+
     // Se o socket estiver conectado, entrar no projeto imediatamente
     if (isConnected) {
       collaborationService.joinProject(projectId);
@@ -175,12 +169,8 @@ export const CollaborationProvider = ({ children }) => {
 
   // Atualizar posição do mouse
   const updateMousePosition = useCallback((mousePosition) => {
-    console.log('CollaborationContext.updateMousePosition chamado - currentProjectId:', currentProjectId, 'isConnected:', isConnected, 'mousePosition:', mousePosition);
     if (currentProjectId && isConnected) {
-      console.log('Enviando mouse position para servidor via collaborationService');
       collaborationService.updateMousePosition(currentProjectId, mousePosition);
-    } else {
-      console.warn('Mouse position não enviado - currentProjectId:', currentProjectId, 'isConnected:', isConnected);
     }
   }, [currentProjectId, isConnected]);
 
@@ -222,9 +212,7 @@ export const CollaborationProvider = ({ children }) => {
   const notifyTrackAdded = useCallback((track) => {
     const projId = currentProjectIdRef.current;
     const connected = isConnectedRef.current;
-    console.log('CollaborationContext.notifyTrackAdded - projId:', projId, 'connected:', connected, 'track:', track.name);
     if (projId && connected) {
-      console.log('Enviando track-added para o servidor...');
       collaborationService.notifyTrackAdded(projId, track);
     } else {
       console.warn('Não foi possível notificar track adicionada - projId:', projId, 'connected:', connected);
@@ -235,7 +223,6 @@ export const CollaborationProvider = ({ children }) => {
   const notifyTrackUpdated = useCallback((trackId, updates) => {
     const projId = currentProjectIdRef.current;
     const connected = isConnectedRef.current;
-    console.log('CollaborationContext.notifyTrackUpdated - projId:', projId, 'connected:', connected, 'trackId:', trackId, 'updates:', updates);
     if (projId && connected) {
       collaborationService.notifyTrackUpdated(projId, trackId, updates);
     } else {
@@ -247,7 +234,6 @@ export const CollaborationProvider = ({ children }) => {
   const notifyTrackDeleted = useCallback((trackId) => {
     const projId = currentProjectIdRef.current;
     const connected = isConnectedRef.current;
-    console.log('CollaborationContext.notifyTrackDeleted - projId:', projId, 'connected:', connected, 'trackId:', trackId);
     if (projId && connected) {
       collaborationService.notifyTrackDeleted(projId, trackId);
     } else {

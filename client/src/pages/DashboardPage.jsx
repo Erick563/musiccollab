@@ -10,6 +10,7 @@ const DashboardPage = () => {
   const [projects, setProjects] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingProjectId, setDeletingProjectId] = useState(null);
   const [stats, setStats] = useState({
     totalProjects: 0,
     totalTracks: 0,
@@ -30,7 +31,8 @@ const DashboardPage = () => {
           lastUpdated: project.updatedAt,
           tracks: project.tracksCount || 0,
           collaborators: project.collaboratorsCount || 0,
-          status: project.status
+          status: project.status,
+          owner: project.owner
         }));
 
         setProjects(formattedProjects);
@@ -102,6 +104,69 @@ const DashboardPage = () => {
       const url = `${window.location.origin}/studio/${project.id}`;
       navigator.clipboard.writeText(url);
       alert('Link copiado para a área de transferência!');
+    }
+  };
+
+  const handleDeleteProject = async (project, event) => {
+    event.stopPropagation();
+
+    if (project.owner?.id !== user?.id) {
+      alert('Apenas o proprietário pode excluir o projeto');
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Tem certeza que deseja excluir o projeto "${project.name}"?\n\n` +
+      'Esta ação não pode ser desfeita e todos os dados do projeto serão permanentemente removidos.'
+    );
+
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      setDeletingProjectId(project.id);
+
+      await projectService.deleteProject(project.id);
+
+      // Remover projeto da lista local
+      setProjects(prevProjects => {
+        const updatedProjects = prevProjects.filter(p => p.id !== project.id);
+        
+        // Atualizar estatísticas
+        const longestProject = updatedProjects.reduce((prev, current) => {
+          const prevDur = parseDuration(prev.duration);
+          const currDur = parseDuration(current.duration);
+          return prevDur > currDur ? prev : current;
+        }, updatedProjects[0] || null);
+
+        const popularProjects = [...updatedProjects]
+          .sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated))
+          .slice(0, 3);
+
+        const totalTracks = updatedProjects.reduce((sum, p) => sum + p.tracks, 0);
+
+        setStats({
+          totalProjects: updatedProjects.length,
+          totalTracks: totalTracks,
+          longestProject,
+          popularProjects
+        });
+
+        // Atualizar projeto atual se foi deletado
+        if (currentProject?.id === project.id) {
+          setCurrentProject(updatedProjects[0] || null);
+        }
+
+        return updatedProjects;
+      });
+
+      alert('Projeto excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir projeto:', error);
+      alert(error.response?.data?.message || 'Erro ao excluir projeto. Tente novamente.');
+    } finally {
+      setDeletingProjectId(null);
     }
   };
 
@@ -241,16 +306,28 @@ const DashboardPage = () => {
                 >
                   <div className="project-header">
                     <h4>{project.name}</h4>
-                    <button 
-                      className="action-btn share-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleShare(project);
-                      }}
-                      title="Compartilhar projeto"
-                    >
-                      🔗
-                    </button>
+                    <div className="project-actions" style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        className="action-btn share-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleShare(project);
+                        }}
+                        title="Compartilhar projeto"
+                      >
+                        🔗
+                      </button>
+                      {project.owner?.id === user?.id && (
+                        <button 
+                          className="action-btn delete-btn"
+                          onClick={(e) => handleDeleteProject(project, e)}
+                          disabled={deletingProjectId === project.id}
+                          title="Excluir projeto (apenas proprietário)"
+                        >
+                          {deletingProjectId === project.id ? '⏳' : '🗑️'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   <div className="project-details">

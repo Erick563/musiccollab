@@ -58,6 +58,7 @@ const StudioPage = () => {
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [projectLocked, setProjectLocked] = useState(false);
   const [projectLockedBy, setProjectLockedBy] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const playbackIntervalRef = useRef(null);
   const selectedTrackRef = useRef(null);
   const loadedProjectIdRef = useRef(null);
@@ -1613,6 +1614,48 @@ const StudioPage = () => {
     }
   }, [clipboard, currentTime, showToast, tracks, currentUserRole, currentProjectId, requestProjectLock, releaseProjectLock, processAudioSegment, notifyTrackAdded, masterVolume, zoom, projectName]);
 
+  const handleDeleteProject = useCallback(async () => {
+    if (!currentProjectId) {
+      showToast('Nenhum projeto para excluir', 'warning');
+      return;
+    }
+
+    if (projectOwner?.id !== user?.id) {
+      showToast('Apenas o proprietário pode excluir o projeto', 'error');
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Tem certeza que deseja excluir o projeto "${projectName}"?\n\n` +
+      'Esta ação não pode ser desfeita e todos os dados do projeto serão permanentemente removidos.'
+    );
+
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      showToast('Excluindo projeto...', 'info');
+
+      await projectService.deleteProject(currentProjectId);
+
+      showToast('Projeto excluído com sucesso!', 'success');
+
+      // Redirecionar para o dashboard após breve delay
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1500);
+    } catch (error) {
+      console.error('Erro ao excluir projeto:', error);
+      showToast(
+        error.response?.data?.message || 'Erro ao excluir projeto. Tente novamente.',
+        'error'
+      );
+      setIsDeleting(false);
+    }
+  }, [currentProjectId, projectOwner, user, projectName, navigate, showToast]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -1807,6 +1850,16 @@ const StudioPage = () => {
           >
             📤 Exportar
           </button>
+          {currentProjectId && projectOwner?.id === user?.id && (
+            <button
+              className="header-btn delete-btn"
+              onClick={handleDeleteProject}
+              disabled={isDeleting}
+              title="Excluir projeto (apenas proprietário)"
+            >
+              {isDeleting ? '⏳ Excluindo...' : '🗑️ Excluir'}
+            </button>
+          )}
           <div className="user-info">
             <span>{user?.name}</span>
             <button className="logout-btn" onClick={logout}>Sair</button>

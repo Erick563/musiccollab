@@ -117,6 +117,21 @@
   box-shadow: 0 4px 12px rgba(0, 212, 255, 0.5);
 }
 
+.header-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.header-btn.delete-btn {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.header-btn.delete-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.5);
+}
+
 .user-info {
   display: flex;
   align-items: center;

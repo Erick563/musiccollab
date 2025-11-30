@@ -26,6 +26,11 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
+// Configurar timeouts do servidor HTTP para evitar conexões penduradas
+server.timeout = 120000; // 120 segundos
+server.keepAliveTimeout = 65000; // 65 segundos (maior que o padrão de load balancers)
+server.headersTimeout = 66000; // 66 segundos (deve ser maior que keepAliveTimeout)
+
 // Configurar Socket.IO para aceitar conexões da rede local
 const socketCorsOrigin = process.env.SOCKET_CORS_ORIGIN;
 const io = new Server(server, {
@@ -33,6 +38,18 @@ const io = new Server(server, {
     origin: socketCorsOrigin ? socketCorsOrigin.split(',') : true, // Permitir todas as origens se não especificado
     methods: ["GET", "POST"],
     credentials: true
+  },
+  // Configurações para evitar conexões penduradas e timeouts
+  pingTimeout: 60000, // 60 segundos - tempo para aguardar resposta do ping
+  pingInterval: 25000, // 25 segundos - intervalo entre pings
+  connectTimeout: 45000, // 45 segundos - timeout para conexão inicial
+  maxHttpBufferSize: 1e8, // 100 MB - limite de dados por mensagem
+  // Configurações de transporte
+  transports: ['websocket', 'polling'],
+  allowUpgrades: true,
+  // Configurações adicionais de performance
+  perMessageDeflate: {
+    threshold: 1024 // Comprimir mensagens maiores que 1KB
   }
 });
 
@@ -55,9 +72,12 @@ app.use('/api/', limiter);
 
 // Configurar CORS para aceitar requisições da rede local
 const corsOptions = {
-  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Permitir requisições sem origin (mobile apps, Postman, etc)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('[CORS] Requisição sem origin - PERMITIDA');
+      return callback(null, true);
+    }
     
     // Permitir localhost e IPs da rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
     const allowedOrigins = [
@@ -70,14 +90,19 @@ const corsOptions = {
     
     // Se SOCKET_CORS_ORIGIN estiver definido, também permitir
     if (process.env.SOCKET_CORS_ORIGIN) {
-      allowedOrigins.push(new RegExp('^' + process.env.SOCKET_CORS_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
+      const origins = process.env.SOCKET_CORS_ORIGIN.split(',');
+      origins.forEach(o => {
+        allowedOrigins.push(new RegExp('^' + o.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
+      });
     }
     
     const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
     
     if (isAllowed) {
-      callback(null, origin); // Return the origin if allowed
+      console.log('[CORS] Origin permitida:', origin);
+      callback(null, true); // Allow the request
     } else {
+      console.log('[CORS] Origin BLOQUEADA:', origin);
       callback(null, false); // Explicitly deny
     }
   },

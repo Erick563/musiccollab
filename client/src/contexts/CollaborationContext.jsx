@@ -77,11 +77,14 @@ export const CollaborationProvider = ({ children }) => {
         });
 
         collaborationService.on('mouse-updated', ({ userId, socketId, mousePosition }) => {
-          setOnlineUsers(prev => prev.map(u =>
-            u.socketId === socketId
-              ? { ...u, mousePosition }
-              : u
-          ));
+          setOnlineUsers(prev => {
+            const updated = prev.map(u =>
+              u.socketId === socketId
+                ? { ...u, mousePosition }
+                : u
+            );
+            return updated;
+          });
         });
 
         // Eventos de bloqueio de tracks
@@ -190,6 +193,22 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, [currentProjectId]);
 
+  // Solicitar bloqueio global do projeto
+  const requestProjectLock = useCallback(async (operation) => {
+    if (!currentProjectId) {
+      throw new Error('Nenhum projeto ativo');
+    }
+
+    return collaborationService.requestProjectLock(currentProjectId, operation);
+  }, [currentProjectId]);
+
+  // Liberar bloqueio global do projeto
+  const releaseProjectLock = useCallback(() => {
+    if (currentProjectId) {
+      collaborationService.releaseProjectLock(currentProjectId);
+    }
+  }, [currentProjectId]);
+
   // Verificar se uma track está bloqueada
   const isTrackLocked = useCallback((trackId) => {
     return lockedTracks.some(t => t.trackId === trackId);
@@ -285,6 +304,8 @@ export const CollaborationProvider = ({ children }) => {
     updateMousePosition,
     requestLock,
     releaseLock,
+    requestProjectLock,
+    releaseProjectLock,
     isTrackLocked,
     getTrackLocker,
     sendUpdate,

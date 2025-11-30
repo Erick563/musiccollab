@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCollaboration } from '../contexts/CollaborationContext';
 import './CollaboratorsPanel.css';
 
-const CollaboratorsPanel = ({ projectId, isOwner, onClose }) => {
+const CollaboratorsPanel = ({ projectId, isOwner, currentUserRole, onClose }) => {
   const { getCollaborators, addCollaborator, removeCollaborator, updateCollaboratorRole } = useCollaboration();
   const [collaborators, setCollaborators] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +100,7 @@ const CollaboratorsPanel = ({ projectId, isOwner, onClose }) => {
           </div>
         )}
 
-        {isOwner && (
+        {(isOwner || currentUserRole === 'ADMIN') && (
           <form className="add-collaborator-form" onSubmit={handleAddCollaborator}>
             <h3>Adicionar Colaborador</h3>
             <div className="form-row">
@@ -151,7 +151,7 @@ const CollaboratorsPanel = ({ projectId, isOwner, onClose }) => {
                   </div>
 
                   <div className="collaborator-actions">
-                    {isOwner && collab.role !== 'OWNER' ? (
+                    {(isOwner || currentUserRole === 'ADMIN') && collab.role !== 'OWNER' ? (
                       <>
                         <select
                           value={collab.role}

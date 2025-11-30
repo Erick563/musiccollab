@@ -8,6 +8,18 @@
   overflow: hidden;
 }
 
+/* Animação para indicador de projeto travado */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
 /* Header */
 .studio-header {
   background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);

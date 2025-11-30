@@ -274,6 +274,7 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { title, status, state } = req.body;
 
+    // Buscar projeto e verificar permissões
     const existingProject = await prisma.project.findFirst({
       where: {
         id,
@@ -290,6 +291,13 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
             }
           }
         ]
+      },
+      include: {
+        collaborators: {
+          where: {
+            userId: req.user.id
+          }
+        }
       }
     });
 
@@ -300,9 +308,30 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Determinar role do usuário
+    let userRole = 'VIEWER';
+    if (existingProject.ownerId === req.user.id) {
+      userRole = 'OWNER';
+    } else if (existingProject.collaborators.length > 0) {
+      userRole = existingProject.collaborators[0].role;
+    }
+
+    // Validar permissões específicas
     const updateData: any = {};
-    if (title !== undefined) updateData.title = title.trim();
-    if (status !== undefined) updateData.status = status;
+    
+    // Apenas OWNER e ADMIN podem editar título e status
+    if (title !== undefined || status !== undefined) {
+      if (userRole !== 'OWNER' && userRole !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Apenas proprietários e administradores podem editar informações do projeto (título e status).'
+        });
+      }
+      if (title !== undefined) updateData.title = title.trim();
+      if (status !== undefined) updateData.status = status;
+    }
+    
+    // Colaboradores podem editar o estado (tracks, volumes, etc.)
     if (state !== undefined) updateData.state = state;
 
     const updatedProject = await prisma.project.update({
@@ -632,6 +661,28 @@ export const updateCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Verificar se o colaborador a ser atualizado é o proprietário
+    const collaboratorToUpdate = await prisma.projectCollaborator.findUnique({
+      where: {
+        id: collaboratorId
+      }
+    });
+
+    if (!collaboratorToUpdate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Colaborador não encontrado'
+      });
+    }
+
+    // Não permitir alterar a role do proprietário
+    if (collaboratorToUpdate.userId === project.ownerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Não é possível alterar as permissões do proprietário do projeto'
+      });
+    }
+
     // Atualizar colaborador
     const collaborator = await prisma.projectCollaborator.update({
       where: {
@@ -704,6 +755,28 @@ export const removeCollaborator = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({
         success: false,
         message: 'Você não tem permissão para remover colaboradores deste projeto'
+      });
+    }
+
+    // Verificar se o colaborador a ser removido é o proprietário
+    const collaboratorToRemove = await prisma.projectCollaborator.findUnique({
+      where: {
+        id: collaboratorId
+      }
+    });
+
+    if (!collaboratorToRemove) {
+      return res.status(404).json({
+        success: false,
+        message: 'Colaborador não encontrado'
+      });
+    }
+
+    // Não permitir remover o proprietário
+    if (collaboratorToRemove.userId === project.ownerId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Não é possível remover o proprietário do projeto'
       });
     }
 

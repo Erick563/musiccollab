@@ -208,6 +208,13 @@
   background: #00d4ff;
   cursor: pointer;
   box-shadow: 0 0 6px rgba(0, 212, 255, 0.5);
+  transition: all 0.2s ease;
+}
+
+.pan-slider-mini:active::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.8);
 }
 
 .volume-slider-mini::-moz-range-thumb,
@@ -218,6 +225,13 @@
   background: #00d4ff;
   cursor: pointer;
   border: none;
+  transition: all 0.2s ease;
+}
+
+.pan-slider-mini:active::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.8);
 }
 
 .volume-value-mini,
@@ -228,6 +242,16 @@
   font-size: 0.7rem;
   min-width: 24px;
   text-align: right;
+}
+
+.pan-value-mini {
+  transition: all 0.2s ease;
+}
+
+/* Destacar quando PAN está ativo (não-centro) */
+.track-pan-control:has(.pan-slider-mini:not([value="0"])) .pan-value-mini {
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
 }
 
 .starttime-input {

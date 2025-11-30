@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import WaveformDisplay from './WaveformDisplay';
 import RegionSelector from './RegionSelector';
-import EffectsPanel from './EffectsPanel';
 import './TimelineTrack.css';
 
 const TimelineTrack = ({ 
@@ -26,6 +25,83 @@ const TimelineTrack = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartTime, setDragStartTime] = useState(0);
+  
+  // Web Audio API refs para PAN
+  const audioContextRef = useRef(null);
+  const sourceNodeRef = useRef(null);
+  const gainNodeRef = useRef(null);
+  const pannerNodeRef = useRef(null);
+  const isWebAudioInitialized = useRef(false);
+
+  // Inicializar Web Audio API uma vez
+  useEffect(() => {
+    const initWebAudio = () => {
+      const audio = audioRef.current;
+      if (!audio || isWebAudioInitialized.current) return;
+
+      try {
+        // Criar AudioContext
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        audioContextRef.current = audioContext;
+
+        // Criar source a partir do elemento audio
+        const source = audioContext.createMediaElementSource(audio);
+        sourceNodeRef.current = source;
+
+        // Criar nós de processamento
+        const gainNode = audioContext.createGain();
+        const pannerNode = audioContext.createStereoPanner();
+
+        gainNodeRef.current = gainNode;
+        pannerNodeRef.current = pannerNode;
+
+        // Conectar: source -> gain -> panner -> destination
+        source.connect(gainNode);
+        gainNode.connect(pannerNode);
+        pannerNode.connect(audioContext.destination);
+
+        isWebAudioInitialized.current = true;
+        console.log('[TimelineTrack] Web Audio API inicializada para:', track.name);
+      } catch (error) {
+        console.error('[TimelineTrack] Erro ao inicializar Web Audio API:', error);
+      }
+    };
+
+    const audio = audioRef.current;
+    if (audio) {
+      // Aguardar o áudio estar pronto antes de criar o contexto
+      if (audio.readyState >= 1) {
+        initWebAudio();
+      } else {
+        audio.addEventListener('loadedmetadata', initWebAudio, { once: true });
+      }
+    }
+
+    return () => {
+      // Cleanup: desconectar e fechar contexto
+      if (sourceNodeRef.current) {
+        try {
+          sourceNodeRef.current.disconnect();
+        } catch (e) {}
+      }
+      if (gainNodeRef.current) {
+        try {
+          gainNodeRef.current.disconnect();
+        } catch (e) {}
+      }
+      if (pannerNodeRef.current) {
+        try {
+          pannerNodeRef.current.disconnect();
+        } catch (e) {}
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        try {
+          audioContextRef.current.close();
+        } catch (e) {}
+      }
+      isWebAudioInitialized.current = false;
+    };
+  }, [track.url, track.name]);
 
   useEffect(() => {
     if ((track.isSegment || track.deletedRegions?.length > 0) && track.duration) {
@@ -70,6 +146,7 @@ const TimelineTrack = ({
 
   useEffect(() => {
     const audio = audioRef.current;
+    const audioContext = audioContextRef.current;
     if (!audio) return;
 
     const trackStartTime = track.startTime || 0;
@@ -85,6 +162,12 @@ const TimelineTrack = ({
       const actualAudioTime = mapTimelineToAudio(relativeTime, deletedRegions, trimStart);
       
       if (currentTime >= trackStartTime && currentTime < trackEndTime && actualAudioTime < trimEnd) {
+        // Retomar AudioContext se estiver suspenso (política de autoplay)
+        if (audioContext && audioContext.state === 'suspended') {
+          audioContext.resume().then(() => {
+            console.log('[TimelineTrack] AudioContext retomado');
+          });
+        }
         audio.play().catch(() => {});
       } else {
         audio.pause();
@@ -94,14 +177,32 @@ const TimelineTrack = ({
     }
   }, [isPlaying, track.mute, track.solo, hasSoloedTracks, currentTime, track.duration, track.startTime, track.trimStart, track.trimEnd, track.deletedRegions, track.isSegment, track.name]);
 
+  // Atualizar volume e pan usando Web Audio API
   useEffect(() => {
     const audio = audioRef.current;
+    const gainNode = gainNodeRef.current;
+    const pannerNode = pannerNodeRef.current;
+    
     if (!audio) return;
     
     const shouldBeMuted = track.mute || (hasSoloedTracks && !track.solo);
+    const targetVolume = shouldBeMuted ? 0 : (track.volume / 100);
     
-    audio.volume = shouldBeMuted ? 0 : (track.volume / 100);
-  }, [track.volume, track.mute, track.solo, hasSoloedTracks]);
+    // Usar Web Audio API se disponível, senão usar volume nativo
+    if (gainNode) {
+      gainNode.gain.value = targetVolume;
+    } else {
+      audio.volume = targetVolume;
+    }
+    
+    // Aplicar pan se disponível
+    if (pannerNode && track.pan !== undefined) {
+      // Normalizar pan de -50..50 para -1..1
+      const normalizedPan = track.pan / 50;
+      pannerNode.pan.value = Math.max(-1, Math.min(1, normalizedPan));
+      console.log(`[TimelineTrack] Pan atualizado para ${track.name}: ${track.pan} (${normalizedPan.toFixed(2)})`);
+    }
+  }, [track.volume, track.pan, track.mute, track.solo, hasSoloedTracks, track.name]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -162,10 +263,6 @@ const TimelineTrack = ({
     const absolutePercentage = absoluteTime / maxDuration;
     
     onSeek(absolutePercentage);
-  };
-
-  const handleUpdateEffects = (trackId, effects) => {
-    onUpdate(trackId, { effects });
   };
 
   const handleDragHandleMouseDown = (e) => {
@@ -264,11 +361,6 @@ const TimelineTrack = ({
           >
             M
           </button>
-          {!isReadOnly && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <EffectsPanel track={track} onUpdateEffects={handleUpdateEffects} />
-            </div>
-          )}
         </div>
 
         <div className="track-volume-control">

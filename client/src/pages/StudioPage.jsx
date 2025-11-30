@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCollaboration } from '../contexts/CollaborationContext';
@@ -26,6 +26,8 @@ const StudioPage = () => {
     updateMousePosition,
     requestLock,
     releaseLock,
+    requestProjectLock,
+    releaseProjectLock,
     isTrackLocked,
     getTrackLocker,
     notifyTrackAdded,
@@ -55,6 +57,8 @@ const StudioPage = () => {
   const [editingTrackId, setEditingTrackId] = useState(null);
   const [isContainerReady, setIsContainerReady] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState(null);
+  const [projectLocked, setProjectLocked] = useState(false);
+  const [projectLockedBy, setProjectLockedBy] = useState(null);
   const playbackIntervalRef = useRef(null);
   const selectedTrackRef = useRef(null);
   const loadedProjectIdRef = useRef(null);
@@ -382,7 +386,7 @@ const StudioPage = () => {
     if (currentProjectId) {
       notifyTrackDeleted(trackId);
     }
-  }, [selectedTrack, currentProjectId, notifyTrackDeleted]);
+  }, [selectedTrack, currentProjectId, notifyTrackDeleted, currentUserRole, showToast]);
 
   // Ref para debounce de notificações
   const notificationTimerRef = useRef(null);
@@ -800,11 +804,12 @@ const StudioPage = () => {
   }, [currentProjectId, user, joinProject, leaveProject, editingTrackId, releaseLock]);
 
   // Detectar quando o container está pronto
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (studioContentRef.current && !isContainerReady) {
       setIsContainerReady(true);
     }
-  }, [isContainerReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
 
   // Trackear movimento do mouse para cursor colaborativo
   useEffect(() => {
@@ -812,7 +817,6 @@ const StudioPage = () => {
     if (!currentProjectId || !isConnected || !studioContentRef.current || !isContainerReady) {
       return;
     }
-
 
     const handleMouseMove = (e) => {
       const container = studioContentRef.current;
@@ -906,8 +910,8 @@ const StudioPage = () => {
           track.id === trackId ? { ...track, ...updates } : track
         );
 
-        // Recalcular duração se a posição mudou
-        if (updates.startTime !== undefined && updatedTracks.length > 0) {
+        // Recalcular duração se a posição ou duração da track mudou
+        if ((updates.startTime !== undefined || updates.duration !== undefined) && updatedTracks.length > 0) {
           const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
           setDuration(maxDur);
         }
@@ -920,6 +924,11 @@ const StudioPage = () => {
           const track = prevTracks.find(t => t.id === trackId);
           if (track) {
             showToast(`${userName} moveu "${track.name}"`, 'info', 1500);
+          }
+        } else if (updates.deletedRegions !== undefined) {
+          const track = prevTracks.find(t => t.id === trackId);
+          if (track) {
+            showToast(`${userName} editou "${track.name}"`, 'info', 2000);
           }
         } else if (updates.volume !== undefined || updates.pan !== undefined) {
           // Não mostrar toast para mudanças de volume/pan
@@ -947,16 +956,35 @@ const StudioPage = () => {
       setSelectedTrack(prev => prev?.id === trackId ? null : prev);
     };
 
+    // Handler para quando o projeto é bloqueado globalmente
+    const handleProjectLocked = (data) => {
+      const { userName, operation } = data;
+      setProjectLocked(true);
+      setProjectLockedBy({ userName, operation });
+      showToast(`⚠️ Projeto travado por ${userName} (${operation})`, 'warning', 3000);
+    };
+
+    // Handler para quando o projeto é desbloqueado globalmente
+    const handleProjectUnlocked = () => {
+      setProjectLocked(false);
+      setProjectLockedBy(null);
+      showToast('✅ Projeto desbloqueado', 'success', 2000);
+    };
+
     // Registrar listeners
     on('track-added', handleTrackAdded);
     on('track-updated', handleTrackUpdated);
     on('track-deleted', handleTrackDeleted);
+    on('project-locked', handleProjectLocked);
+    on('project-unlocked', handleProjectUnlocked);
 
     // Cleanup: remover listeners
     return () => {
       off('track-added', handleTrackAdded);
       off('track-updated', handleTrackUpdated);
       off('track-deleted', handleTrackDeleted);
+      off('project-locked', handleProjectLocked);
+      off('project-unlocked', handleProjectUnlocked);
     };
   }, [currentProjectId, isConnected, on, off, showToast]);
 
@@ -1259,7 +1287,7 @@ const StudioPage = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [user, tracks, currentProjectId, projectName, showToast, masterVolume, zoom, currentTime]);
+  }, [user, tracks, currentProjectId, projectName, showToast, masterVolume, zoom, currentTime, currentUserRole]);
 
 
   const formatTime = (seconds) => {
@@ -1333,58 +1361,130 @@ const StudioPage = () => {
     showToast(`Região copiada: ${track.name} (${duration}s)`, 'success');
   }, [tracks, showToast, mapTimelineToAudioTime]);
 
-  const handleDeleteRegion = useCallback((trackId, region) => {
+  const handleDeleteRegion = useCallback(async (trackId, region) => {
     // Bloquear deleção de região para VIEWER
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para deletar regiões. Sua permissão é apenas de visualização.', 'error');
       return;
     }
 
+    if (!currentProjectId) {
+      showToast('Salve o projeto antes de deletar regiões.', 'warning');
+      return;
+    }
+
     const track = tracks.find(t => t.id === trackId);
     if (!track || !region) return;
 
-    const regionDuration = region.end - region.start;
-    const trimStart = track.trimStart || 0;
-    const deletedRegions = track.deletedRegions || [];
+    let projectLocked = false;
 
-    const absoluteRegion = {
-      start: mapTimelineToAudioTime(region.start, deletedRegions, trimStart),
-      end: mapTimelineToAudioTime(region.end, deletedRegions, trimStart)
-    };
+    try {
+      // 1. Solicitar lock global do projeto
+      showToast('Travando projeto para operação...', 'info', 1500);
+      await requestProjectLock('delete');
+      projectLocked = true;
 
-    const updatedDeletedRegions = [
-      ...deletedRegions,
-      absoluteRegion
-    ].sort((a, b) => a.start - b.start);
+      const regionDuration = region.end - region.start;
+      const trimStart = track.trimStart || 0;
+      const deletedRegions = track.deletedRegions || [];
 
-    const newDuration = track.duration - regionDuration;
+      const absoluteRegion = {
+        start: mapTimelineToAudioTime(region.start, deletedRegions, trimStart),
+        end: mapTimelineToAudioTime(region.end, deletedRegions, trimStart)
+      };
 
-    setTracks(prevTracks => {
-      const updated = prevTracks.map(t =>
-        t.id === trackId
-          ? {
-            ...t,
-            deletedRegions: updatedDeletedRegions,
-            duration: newDuration
-          }
-          : t
-      );
+      const updatedDeletedRegions = [
+        ...deletedRegions,
+        absoluteRegion
+      ].sort((a, b) => a.start - b.start);
 
-      if (updated.length > 0) {
-        const maxDur = Math.max(...updated.map(t => (t.startTime || 0) + (t.duration || 0)));
-        setDuration(maxDur);
+      const newDuration = track.duration - regionDuration;
+
+      // 2. Atualizar estado local
+      let updatedTracks = [];
+      setTracks(prevTracks => {
+        const updated = prevTracks.map(t =>
+          t.id === trackId
+            ? {
+              ...t,
+              deletedRegions: updatedDeletedRegions,
+              duration: newDuration
+            }
+            : t
+        );
+
+        if (updated.length > 0) {
+          const maxDur = Math.max(...updated.map(t => (t.startTime || 0) + (t.duration || 0)));
+          setDuration(maxDur);
+        }
+
+        updatedTracks = updated;
+        return updated;
+      });
+
+      // Aguardar atualização do estado
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // 3. Realizar auto-save do projeto
+      showToast('Realizando auto-save...', 'info');
+      const projectState = {
+        tracks: updatedTracks.map(track => ({
+          id: track.id,
+          trackId: track.trackId || track.id,
+          name: track.name,
+          duration: track.duration,
+          startTime: track.startTime || 0,
+          volume: track.volume || 75,
+          pan: track.pan || 0,
+          solo: track.solo || false,
+          mute: track.mute || false,
+          color: track.color,
+          trimStart: track.trimStart,
+          trimEnd: track.trimEnd,
+          deletedRegions: track.deletedRegions || [],
+          isSegment: track.isSegment || false
+        })),
+        masterVolume: masterVolume,
+        zoom: zoom,
+        currentTime: currentTime
+      };
+
+      const projectData = {
+        title: projectName.trim() || 'Novo Projeto',
+        state: projectState
+      };
+
+      await projectService.updateProject(currentProjectId, projectData);
+
+      // 4. Notificar outros usuários sobre a atualização da track
+      notifyTrackUpdated(trackId, {
+        deletedRegions: updatedDeletedRegions,
+        duration: newDuration
+      });
+
+      showToast(`${regionDuration.toFixed(1)}s removido de ${track.name} e salvo!`, 'success');
+
+    } catch (error) {
+      console.error('Erro ao deletar região:', error);
+      showToast(`Erro ao deletar região: ${error.message}`, 'error');
+    } finally {
+      // 5. Liberar lock global do projeto
+      if (projectLocked) {
+        releaseProjectLock();
+        showToast('Projeto desbloqueado', 'info', 1500);
       }
+    }
+  }, [tracks, showToast, mapTimelineToAudioTime, currentUserRole, currentProjectId, requestProjectLock, releaseProjectLock, masterVolume, zoom, currentTime, projectName, notifyTrackUpdated]);
 
-      return updated;
-    });
-
-    showToast(`${regionDuration.toFixed(1)}s removido de ${track.name}`, 'success');
-  }, [tracks, showToast, mapTimelineToAudioTime]);
-
-  const handleCutRegion = useCallback((trackId, region) => {
+  const handleCutRegion = useCallback(async (trackId, region) => {
     // Bloquear corte de região para VIEWER
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para recortar regiões. Sua permissão é apenas de visualização.', 'error');
+      return;
+    }
+
+    if (!currentProjectId) {
+      showToast('Salve o projeto antes de recortar regiões.', 'warning');
       return;
     }
 
@@ -1410,13 +1510,14 @@ const StudioPage = () => {
       isCut: true
     });
 
-    handleDeleteRegion(trackId, region);
+    // Chamar handleDeleteRegion que agora também trava e faz auto-save
+    await handleDeleteRegion(trackId, region);
 
     const duration = (region.end - region.start).toFixed(1);
     showToast(`Região recortada: ${track.name} (${duration}s)`, 'success');
-  }, [tracks, showToast, handleDeleteRegion, mapTimelineToAudioTime]);
+  }, [tracks, showToast, handleDeleteRegion, mapTimelineToAudioTime, currentUserRole, currentProjectId]);
 
-  const handlePaste = useCallback(() => {
+  const handlePaste = useCallback(async () => {
     // Bloquear colar para VIEWER
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para colar regiões. Sua permissão é apenas de visualização.', 'error');
@@ -1428,49 +1529,157 @@ const StudioPage = () => {
       return;
     }
 
-    let originalTrack = tracks.find(t => t.id === clipboard.trackId || t.trackId === clipboard.trackId);
-
-    if (originalTrack?.isSegment && originalTrack?.trackId) {
-      const originalDbTrack = tracks.find(t => (t.id === originalTrack.trackId || t.trackId === originalTrack.trackId) && !t.isSegment);
-      if (originalDbTrack) {
-        originalTrack = originalDbTrack;
-      }
+    if (!currentProjectId) {
+      showToast('Salve o projeto antes de colar segmentos.', 'warning');
+      return;
     }
 
-    const originalTrackId = originalTrack?.trackId || originalTrack?.id || clipboard.trackId;
+    let projectLocked = false;
 
-    const segmentDuration = clipboard.region.end - clipboard.region.start;
+    try {
+      // 1. Solicitar lock global do projeto
+      showToast('Travando projeto para operação...', 'info', 1500);
+      await requestProjectLock('paste');
+      projectLocked = true;
 
-    const newTrack = {
-      id: Date.now(),
-      trackId: originalTrackId,
-      name: `${clipboard.trackName} (Segmento)`,
-      file: clipboard.audioFile,
-      url: clipboard.audioUrl,
-      duration: segmentDuration,
-      startTime: currentTime,
-      trimStart: clipboard.region.start,
-      trimEnd: clipboard.region.end,
-      volume: 75,
-      pan: 0,
-      solo: false,
-      mute: false,
-      color: clipboard.color,
-      isSegment: true
-    };
+      let originalTrack = tracks.find(t => t.id === clipboard.trackId || t.trackId === clipboard.trackId);
 
-    setTracks(prevTracks => {
-      const updatedTracks = [...prevTracks, newTrack];
+      if (originalTrack?.isSegment && originalTrack?.trackId) {
+        const originalDbTrack = tracks.find(t => (t.id === originalTrack.trackId || t.trackId === originalTrack.trackId) && !t.isSegment);
+        if (originalDbTrack) {
+          originalTrack = originalDbTrack;
+        }
+      }
 
-      const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
-      setDuration(maxDur);
+      const originalTrackId = originalTrack?.trackId || originalTrack?.id || clipboard.trackId;
+      const segmentDuration = clipboard.region.end - clipboard.region.start;
 
-      return updatedTracks;
-    });
+      // 2. Criar track temporária no estado local
+      const tempId = Date.now();
+      const newTrack = {
+        id: tempId,
+        trackId: originalTrackId,
+        name: `${clipboard.trackName} (Segmento)`,
+        file: clipboard.audioFile,
+        url: clipboard.audioUrl,
+        duration: segmentDuration,
+        startTime: currentTime,
+        trimStart: clipboard.region.start,
+        trimEnd: clipboard.region.end,
+        volume: 75,
+        pan: 0,
+        solo: false,
+        mute: false,
+        color: clipboard.color,
+        isSegment: true,
+        deletedRegions: []
+      };
 
-    const timeStr = `${Math.floor(currentTime / 60)}:${Math.floor(currentTime % 60).toString().padStart(2, '0')}`;
-    showToast(`Segmento colado em ${timeStr}`, 'success');
-  }, [clipboard, currentTime, showToast, tracks]);
+      setTracks(prevTracks => {
+        const updatedTracks = [...prevTracks, newTrack];
+        const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
+        setDuration(maxDur);
+        return updatedTracks;
+      });
+
+      const audioFile = await processAudioSegment(newTrack);
+
+      const trackData = {
+        name: newTrack.name,
+        startTime: newTrack.startTime || 0,
+        volume: newTrack.volume || 75,
+        pan: newTrack.pan || 0,
+        color: newTrack.color
+      };
+
+      const uploadedTrack = await trackService.createTrack(currentProjectId, audioFile, trackData);
+
+      // Atualizar duração
+      await trackService.updateTrack(uploadedTrack.id, { duration: Math.floor(segmentDuration) });
+
+      const audioUrl = await trackService.getTrackAudio(uploadedTrack.id);
+
+      // 5. Atualizar estado local com o ID real do banco e o novo URL
+      let updatedTracks = [];
+      setTracks(prevTracks => {
+        updatedTracks = prevTracks.map(t =>
+          t.id === tempId
+            ? { 
+                ...t, 
+                id: uploadedTrack.id, 
+                trackId: uploadedTrack.id,
+                url: audioUrl,           // Atualizar com o áudio processado
+                isSegment: false,
+                trimStart: null,
+                trimEnd: null,
+                deletedRegions: []
+              }
+            : t
+        );
+        return updatedTracks;
+      });
+
+      // Aguardar atualização do estado
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const projectState = {
+        tracks: updatedTracks.map(track => ({
+          id: track.id,
+          trackId: track.trackId || track.id,
+          name: track.name,
+          duration: track.duration,
+          startTime: track.startTime || 0,
+          volume: track.volume || 75,
+          pan: track.pan || 0,
+          solo: track.solo || false,
+          mute: track.mute || false,
+          color: track.color,
+          trimStart: null,
+          trimEnd: null,
+          deletedRegions: [],
+          isSegment: false
+        })),
+        masterVolume: masterVolume,
+        zoom: zoom,
+        currentTime: currentTime
+      };
+
+      const projectData = {
+        title: projectName.trim() || 'Novo Projeto',
+        state: projectState
+      };
+
+      await projectService.updateProject(currentProjectId, projectData);
+
+      // 7. Notificar outros usuários sobre a nova track
+      const trackForSync = {
+        id: uploadedTrack.id,
+        trackId: uploadedTrack.id,
+        name: newTrack.name,
+        duration: segmentDuration,
+        startTime: newTrack.startTime,
+        volume: newTrack.volume,
+        pan: newTrack.pan,
+        solo: newTrack.solo,
+        mute: newTrack.mute,
+        color: newTrack.color,
+        isTemporary: false
+      };
+
+      notifyTrackAdded(trackForSync);
+
+      const timeStr = `${Math.floor(currentTime / 60)}:${Math.floor(currentTime % 60).toString().padStart(2, '0')}`;
+      
+    } catch (error) {
+      console.error('Erro ao colar segmento:', error);
+      showToast(`Erro ao colar segmento: ${error.message}`, 'error');
+    } finally {
+      // 8. Liberar lock global do projeto
+      if (projectLocked) {
+        releaseProjectLock();
+      }
+    }
+  }, [clipboard, currentTime, showToast, tracks, currentUserRole, currentProjectId, requestProjectLock, releaseProjectLock, processAudioSegment, notifyTrackAdded, masterVolume, zoom, projectName]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -1579,8 +1788,14 @@ const StudioPage = () => {
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
             placeholder="Nome do Projeto"
-            disabled={currentUserRole === 'VIEWER'}
-            title={currentUserRole === 'VIEWER' ? 'Você não pode editar o nome do projeto (somente visualização)' : ''}
+            disabled={currentUserRole === 'VIEWER' || currentUserRole === 'COLLABORATOR'}
+            title={
+              currentUserRole === 'VIEWER' 
+                ? 'Você não pode editar o nome do projeto (somente visualização)' 
+                : currentUserRole === 'COLLABORATOR'
+                ? 'Apenas proprietários e administradores podem editar o nome do projeto'
+                : ''
+            }
           />
           {currentUserRole === 'VIEWER' && (
             <span style={{
@@ -1593,6 +1808,46 @@ const StudioPage = () => {
               marginLeft: '10px'
             }}>
               👁️ MODO VISUALIZAÇÃO
+            </span>
+          )}
+          {currentUserRole === 'COLLABORATOR' && (
+            <span style={{
+              backgroundColor: '#4ecdc4',
+              color: 'white',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              marginLeft: '10px'
+            }}>
+              🎵 COLABORADOR
+            </span>
+          )}
+          {currentUserRole === 'ADMIN' && (
+            <span style={{
+              backgroundColor: '#45b7d1',
+              color: 'white',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              marginLeft: '10px'
+            }}>
+              ⚙️ ADMINISTRADOR
+            </span>
+          )}
+          {projectLocked && projectLockedBy && (
+            <span style={{
+              backgroundColor: '#ff9800',
+              color: 'white',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              marginLeft: '10px',
+              animation: 'pulse 2s infinite'
+            }}>
+              🔒 TRAVADO - {projectLockedBy.userName} ({projectLockedBy.operation})
             </span>
           )}
         </div>
@@ -1643,12 +1898,6 @@ const StudioPage = () => {
           >
             {isPlaying ? '⏸' : '▶'}
           </button>
-          <button
-            className="transport-btn record"
-            title="Record"
-          >
-            ⏺
-          </button>
         </div>
 
         <div className="transport-info">
@@ -1681,15 +1930,19 @@ const StudioPage = () => {
       <div className="studio-content audacity-layout" ref={studioContentRef}>
         {/* Cursores colaborativos */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 10000 }}>
-          {currentProjectId && onlineUsers
-            .filter(u => u.userId !== user?.id && u.mousePosition)
-            .map(u => (
+          {currentProjectId && (() => {
+            const filtered = onlineUsers.filter(u => u.userId !== user?.id && u.mousePosition);
+            if (onlineUsers.length > 1) {
+              console.log('[StudioPage] Renderizando cursores - Total users:', onlineUsers.length, 'Filtered:', filtered.length, 'Users:', onlineUsers.map(u => ({ name: u.userName, hasMousePos: !!u.mousePosition })));
+            }
+            return filtered.map(u => (
               <CollaborativeCursor
                 key={u.socketId}
                 user={{ ...u, cursorColor: getUserColor(u.userId) }}
                 containerRef={studioContentRef}
               />
-            ))}
+            ));
+          })()}
         </div>
 
         <aside className="studio-sidebar">
@@ -1870,6 +2123,7 @@ const StudioPage = () => {
         <CollaboratorsPanel
           projectId={currentProjectId}
           isOwner={projectOwner?.id === user?.id}
+          currentUserRole={currentUserRole}
           onClose={() => setShowCollaboratorsPanel(false)}
         />
       )}

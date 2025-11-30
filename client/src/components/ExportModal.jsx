@@ -11,22 +11,45 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
   if (!isOpen) return null;
 
   const handleExport = async () => {
+    // Validações antes de iniciar
+    if (!tracks || tracks.length === 0) {
+      alert('❌ Não há faixas para exportar. Adicione pelo menos uma faixa ao projeto.');
+      return;
+    }
+
+    if (duration <= 0) {
+      alert('❌ Duração do projeto inválida. Verifique as faixas.');
+      return;
+    }
+
     setIsExporting(true);
     setExportProgress(0);
 
     try {
-
+      console.log('[Export] Iniciando exportação...', { tracks: tracks.length, duration });
+      
       setExportProgress(10);
       const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const buffers = await loadAllAudioBuffers(tracks, audioContext);
+      
+      console.log('[Export] Buffers carregados:', buffers.length);
       setExportProgress(30);
+
+      // Validar se conseguimos carregar pelo menos um buffer
+      if (buffers.length === 0) {
+        throw new Error('Nenhuma faixa de áudio pôde ser carregada. Verifique se os arquivos estão corretos.');
+      }
 
       const sampleRate = 44100;
       const lengthInSamples = Math.ceil(duration * sampleRate);
 
+      // Garantir pelo menos 2 canais (estéreo)
       const numberOfChannels = buffers.length > 0 
         ? Math.max(...buffers.map(({ buffer }) => buffer.numberOfChannels), 2)
         : 2;
+      
+      console.log('[Export] Criando contexto offline:', { numberOfChannels, lengthInSamples, sampleRate });
+      
       const offlineContext = new OfflineAudioContext(
         numberOfChannels,
         lengthInSamples,
@@ -37,20 +60,37 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
 
       await mixTracks(tracks, buffers, offlineContext);
 
+      console.log('[Export] Renderizando áudio...');
       setExportProgress(60);
 
       const renderedBuffer = await offlineContext.startRendering();
 
+      console.log('[Export] Áudio renderizado:', { 
+        length: renderedBuffer.length, 
+        duration: renderedBuffer.duration,
+        channels: renderedBuffer.numberOfChannels 
+      });
+      
       setExportProgress(80);
 
       let finalBuffer = renderedBuffer;
       if (normalizeAudio) {
+        console.log('[Export] Normalizando áudio...');
         finalBuffer = normalizeBuffer(renderedBuffer);
       }
 
       setExportProgress(90);
 
+      console.log('[Export] Convertendo para WAV...');
       const wavBlob = bufferToWav(finalBuffer);
+      
+      // Validar se o blob foi criado corretamente
+      if (!wavBlob || wavBlob.size === 0) {
+        throw new Error('Falha ao gerar arquivo de áudio. O arquivo está vazio.');
+      }
+
+      console.log('[Export] Arquivo gerado:', { size: wavBlob.size, type: wavBlob.type });
+
       const filename = `${projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${format}`;
       downloadBlob(wavBlob, filename);
 
@@ -61,13 +101,13 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
       setTimeout(() => {
         setIsExporting(false);
         setExportProgress(0);
-        alert(`Projeto "${projectName}" exportado com sucesso! ✨`);
+        alert(`✨ Projeto "${projectName}" exportado com sucesso!\n\nArquivo: ${filename}\nTamanho: ${(wavBlob.size / 1024 / 1024).toFixed(2)} MB`);
         onClose();
       }, 1000);
 
     } catch (error) {
-
-      alert(`Erro ao exportar: ${error.message}`);
+      console.error('[Export] Erro na exportação:', error);
+      alert(`❌ Erro ao exportar: ${error.message}\n\nVerifique:\n- Se todas as faixas têm áudio válido\n- Se há memória suficiente\n- O console do navegador para mais detalhes`);
       setIsExporting(false);
       setExportProgress(0);
     }
@@ -76,76 +116,189 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
   const loadAllAudioBuffers = async (tracks, audioContext) => {
     const promises = tracks.map(async (track) => {
       try {
+        console.log(`[Export] Carregando track: ${track.name}`, { 
+          url: track.url ? 'presente' : 'ausente',
+          duration: track.duration 
+        });
+        
+        if (!track.url) {
+          console.warn(`[Export] Track sem URL: ${track.name}`);
+          return null;
+        }
+
         const response = await fetch(track.url);
+        
+        if (!response.ok) {
+          console.error(`[Export] Erro ao carregar track ${track.name}: HTTP ${response.status}`);
+          return null;
+        }
+
         const arrayBuffer = await response.arrayBuffer();
+        
+        if (arrayBuffer.byteLength === 0) {
+          console.error(`[Export] Track com dados vazios: ${track.name}`);
+          return null;
+        }
+
+        console.log(`[Export] Decodificando track: ${track.name} (${arrayBuffer.byteLength} bytes)`);
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        
+        console.log(`[Export] Track carregada com sucesso: ${track.name}`, {
+          duration: audioBuffer.duration,
+          channels: audioBuffer.numberOfChannels,
+          sampleRate: audioBuffer.sampleRate
+        });
+        
         return { track, buffer: audioBuffer };
       } catch (error) {
-
+        console.error(`[Export] Falha ao carregar track "${track.name}":`, error);
         return null;
       }
     });
 
     const results = await Promise.all(promises);
-    return results.filter(r => r !== null);
+    const validResults = results.filter(r => r !== null);
+    
+    console.log(`[Export] Resumo do carregamento: ${validResults.length}/${tracks.length} tracks carregadas`);
+    
+    return validResults;
   };
 
   const mixTracks = async (tracks, buffers, offlineContext) => {
     const hasSoloedTracks = tracks.some(t => t.solo);
+    console.log('[Export] Mixando tracks...', { 
+      total: buffers.length, 
+      hasSolo: hasSoloedTracks 
+    });
 
     buffers.forEach(({ track, buffer }) => {
       const shouldSkip = track.mute || (hasSoloedTracks && !track.solo);
       if (shouldSkip) {
+        console.log(`[Export] Pulando track: ${track.name} (mute=${track.mute}, solo=${track.solo})`);
         return;
       }
-
-
+      
+      console.log(`[Export] Processando track: ${track.name}`, {
+        startTime: track.startTime,
+        volume: track.volume,
+        pan: track.pan,
+        isSegment: track.isSegment,
+        deletedRegions: track.deletedRegions?.length || 0
+      });
 
       const source = offlineContext.createBufferSource();
+      let processedBuffer = buffer;
 
-      if (track.isSegment && track.trimStart !== undefined && track.trimEnd !== undefined) {
+      // Processar segmentos (trim) e regiões deletadas
+      if (track.isSegment || (track.deletedRegions && track.deletedRegions.length > 0)) {
         const sampleRate = buffer.sampleRate;
-        const startSample = Math.floor(track.trimStart * sampleRate);
-        const endSample = Math.floor(track.trimEnd * sampleRate);
-        const duration = track.trimEnd - track.trimStart;
         const numberOfChannels = buffer.numberOfChannels;
+        
+        // 1. Aplicar trim se for segmento
+        let workingBuffer = buffer;
+        if (track.isSegment && track.trimStart !== undefined && track.trimEnd !== undefined) {
+          const startSample = Math.floor(track.trimStart * sampleRate);
+          const endSample = Math.floor(track.trimEnd * sampleRate);
+          const duration = track.trimEnd - track.trimStart;
 
-        const trimmedBuffer = offlineContext.createBuffer(
-          numberOfChannels,
-          Math.ceil(duration * sampleRate),
-          sampleRate
-        );
+          const trimmedBuffer = offlineContext.createBuffer(
+            numberOfChannels,
+            Math.ceil(duration * sampleRate),
+            sampleRate
+          );
 
-        for (let channel = 0; channel < numberOfChannels; channel++) {
-          const sourceData = buffer.getChannelData(channel);
-          const destData = trimmedBuffer.getChannelData(channel);
-          for (let i = 0; i < destData.length; i++) {
-            const sourceIndex = startSample + i;
-            if (sourceIndex < sourceData.length) {
-              destData[i] = sourceData[sourceIndex];
+          for (let channel = 0; channel < numberOfChannels; channel++) {
+            const sourceData = buffer.getChannelData(channel);
+            const destData = trimmedBuffer.getChannelData(channel);
+            for (let i = 0; i < destData.length; i++) {
+              const sourceIndex = startSample + i;
+              if (sourceIndex < sourceData.length) {
+                destData[i] = sourceData[sourceIndex];
+              }
             }
+          }
+          workingBuffer = trimmedBuffer;
+        }
+
+        // 2. Remover regiões deletadas
+        if (track.deletedRegions && track.deletedRegions.length > 0) {
+          const bufferLength = workingBuffer.length;
+          const bufferDuration = workingBuffer.duration;
+          const trimStart = track.isSegment ? (track.trimStart || 0) : 0;
+          
+          // Converter regiões deletadas para amostras
+          const deletedRegions = track.deletedRegions
+            .filter(region => {
+              const regionStart = track.isSegment ? Math.max(trimStart, region.start) : region.start;
+              const regionEnd = track.isSegment ? Math.min(trimStart + bufferDuration, region.end) : region.end;
+              return regionEnd > trimStart && regionStart < trimStart + bufferDuration;
+            })
+            .map(region => ({
+              start: Math.max(0, Math.floor((region.start - trimStart) * sampleRate)),
+              end: Math.min(bufferLength, Math.floor((region.end - trimStart) * sampleRate))
+            }))
+            .sort((a, b) => a.start - b.start);
+
+          if (deletedRegions.length > 0) {
+            // Calcular tamanho do buffer final
+            let totalLength = bufferLength;
+            for (const region of deletedRegions) {
+              totalLength -= (region.end - region.start);
+            }
+
+            const cleanedBuffer = offlineContext.createBuffer(numberOfChannels, totalLength, sampleRate);
+
+            // Copiar dados excluindo regiões deletadas
+            for (let channel = 0; channel < numberOfChannels; channel++) {
+              const sourceData = workingBuffer.getChannelData(channel);
+              const destData = cleanedBuffer.getChannelData(channel);
+
+              let destIndex = 0;
+              let sourceIndex = 0;
+
+              for (const region of deletedRegions) {
+                // Copiar dados antes da região deletada
+                const beforeLength = region.start - sourceIndex;
+                for (let i = 0; i < beforeLength; i++) {
+                  destData[destIndex++] = sourceData[sourceIndex++];
+                }
+                // Pular região deletada
+                sourceIndex = region.end;
+              }
+
+              // Copiar dados restantes após última região deletada
+              while (sourceIndex < bufferLength && destIndex < totalLength) {
+                destData[destIndex++] = sourceData[sourceIndex++];
+              }
+            }
+
+            workingBuffer = cleanedBuffer;
           }
         }
 
-        source.buffer = trimmedBuffer;
-
-      } else {
-        source.buffer = buffer;
+        processedBuffer = workingBuffer;
       }
+
+      source.buffer = processedBuffer;
 
       const gainNode = offlineContext.createGain();
       gainNode.gain.value = (track.volume || 75) / 100;
 
-      const pannerNode = offlineContext.createStereoPanner();
-
-      source.connect(gainNode);
-      gainNode.connect(pannerNode);
-      pannerNode.connect(offlineContext.destination);
+      // Aplicar pan apenas se houver mais de um canal
+      if (offlineContext.destination.channelCount > 1 && track.pan !== undefined && track.pan !== 0) {
+        const pannerNode = offlineContext.createStereoPanner();
+        pannerNode.pan.value = track.pan / 50; // Normalizar de -50..50 para -1..1
+        
+        source.connect(gainNode);
+        gainNode.connect(pannerNode);
+        pannerNode.connect(offlineContext.destination);
+      } else {
+        source.connect(gainNode);
+        gainNode.connect(offlineContext.destination);
+      }
 
       const startTime = track.startTime || 0;
       source.start(startTime);
-
-
     });
   };
 
@@ -188,10 +341,28 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
     const length = buffer.length;
     const sampleRate = buffer.sampleRate;
 
-    const bytesPerSample = quality === 'ultra' ? 4 : quality === 'high' && format === 'wav' ? 3 : 2;
-    const blockAlign = numberOfChannels * bytesPerSample;
+    // Determinar bits por amostra baseado na qualidade
+    // Para simplicidade e compatibilidade, usar sempre 16-bit
+    // Se precisar de maior qualidade, usar 24-bit ou 32-bit float
+    let bitsPerSample = 16;
+    let isFloat = false;
+    
+    if (format === 'wav') {
+      if (quality === 'ultra') {
+        bitsPerSample = 32;
+        isFloat = true; // 32-bit float
+      } else if (quality === 'high') {
+        bitsPerSample = 24;
+      }
+    }
 
-    const wavBuffer = new ArrayBuffer(44 + length * blockAlign);
+    const bytesPerSample = bitsPerSample / 8;
+    const blockAlign = numberOfChannels * bytesPerSample;
+    
+    // Header WAV: 44 bytes para PCM, 46 bytes para float
+    const headerSize = isFloat ? 46 : 44;
+    const dataSize = length * blockAlign;
+    const wavBuffer = new ArrayBuffer(headerSize + dataSize);
     const view = new DataView(wavBuffer);
 
     const writeString = (offset, string) => {
@@ -200,24 +371,54 @@ const ExportModal = ({ isOpen, onClose, projectName, tracks, duration }) => {
       }
     };
 
+    // RIFF chunk
     writeString(0, 'RIFF');
-    view.setUint32(4, 36 + length * blockAlign, true);
+    view.setUint32(4, headerSize - 8 + dataSize, true); // Tamanho total - 8
     writeString(8, 'WAVE');
+    
+    // fmt chunk
     writeString(12, 'fmt ');
+    view.setUint32(16, isFloat ? 18 : 16, true); // Tamanho do fmt chunk
+    view.setUint16(20, isFloat ? 3 : 1, true); // Formato: 1=PCM, 3=IEEE float
     view.setUint16(22, numberOfChannels, true);
     view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint32(28, sampleRate * blockAlign, true); // Byte rate
     view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bytesPerSample * 8, true);
-    writeString(36, 'data');
-    view.setUint32(40, length * blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    
+    // Para float, adicionar extensão
+    let dataOffset = 36;
+    if (isFloat) {
+      view.setUint16(36, 0, true); // cbSize = 0 (sem extensão)
+      writeString(38, 'data');
+      view.setUint32(42, dataSize, true);
+      dataOffset = 46;
+    } else {
+      writeString(36, 'data');
+      view.setUint32(40, dataSize, true);
+      dataOffset = 44;
+    }
 
-    const offset = 44;
+    // Escrever dados de áudio
     for (let i = 0; i < length; i++) {
       for (let channel = 0; channel < numberOfChannels; channel++) {
-        const sample = buffer.getChannelData(channel)[i];
-        const int16 = Math.max(-1, Math.min(1, sample)) * 0x7FFF;
-        view.setInt16(offset + (i * blockAlign) + (channel * bytesPerSample), int16, true);
+        const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+        const offset = dataOffset + (i * blockAlign) + (channel * bytesPerSample);
+        
+        if (isFloat) {
+          // 32-bit float
+          view.setFloat32(offset, sample, true);
+        } else if (bitsPerSample === 24) {
+          // 24-bit PCM
+          const int24 = Math.round(sample * 0x7FFFFF);
+          view.setUint8(offset, int24 & 0xFF);
+          view.setUint8(offset + 1, (int24 >> 8) & 0xFF);
+          view.setUint8(offset + 2, (int24 >> 16) & 0xFF);
+        } else {
+          // 16-bit PCM
+          const int16 = Math.round(sample * 0x7FFF);
+          view.setInt16(offset, int16, true);
+        }
       }
     }
 

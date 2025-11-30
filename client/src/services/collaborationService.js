@@ -86,7 +86,7 @@ class CollaborationService {
   updateMousePosition(projectId, mousePosition) {
     
     if (!this.socket || !this.socket.connected) {
-      console.warn('CollaborationService: Socket não conectado ao enviar mouse position - socket exists:', !!this.socket, 'connected:', this.socket?.connected);
+      console.warn('[CollaborationService] ❌ Socket não conectado - socket:', !!this.socket, 'connected:', this.socket?.connected);
       return;
     }
 
@@ -131,6 +131,48 @@ class CollaborationService {
     }
 
     this.socket.emit('release-track-lock', { projectId, trackId });
+  }
+
+  // Solicitar bloqueio global do projeto (para operações críticas)
+  requestProjectLock(projectId, operation) {
+    if (!this.socket || !this.socket.connected) {
+      return Promise.reject(new Error('Socket não conectado'));
+    }
+
+    return new Promise((resolve, reject) => {
+      this.socket.emit('request-project-lock', { projectId, operation });
+
+      // Timeout de 10 segundos
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout ao solicitar bloqueio do projeto'));
+      }, 10000);
+
+      // Aguardar resposta
+      this.socket.once('project-lock-granted', (data) => {
+        clearTimeout(timeout);
+        if (data.projectId === projectId) {
+          resolve(data);
+        }
+      });
+
+      this.socket.once('project-lock-denied', (data) => {
+        clearTimeout(timeout);
+        if (data.lockedBy) {
+          reject(new Error(`Projeto bloqueado por ${data.lockedBy.userName} (${data.lockedBy.operation})`));
+        } else {
+          reject(new Error(data.message || 'Bloqueio negado'));
+        }
+      });
+    });
+  }
+
+  // Liberar bloqueio global do projeto
+  releaseProjectLock(projectId) {
+    if (!this.socket || !this.socket.connected) {
+      return;
+    }
+
+    this.socket.emit('release-project-lock', { projectId });
   }
 
   // Enviar atualização do projeto

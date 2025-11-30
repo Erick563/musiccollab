@@ -31,13 +31,55 @@ const projectRooms = new Map<string, ProjectRoom>();
 // Armazena qual track está sendo editada (bloqueada)
 const trackLocks = new Map<string, { userId: string; userName: string; socketId: string }>();
 
+// Armazena locks globais de projetos (para operações críticas como paste/cut/delete)
+const projectGlobalLocks = new Map<string, { userId: string; userName: string; socketId: string; operation: string }>();
+
+// Função para limpar salas vazias e locks órfãos
+function cleanupMemory(io: Server) {
+  // Limpar salas vazias
+  const emptyRooms: string[] = [];
+  projectRooms.forEach((room, projectId) => {
+    if (room.users.size === 0) {
+      emptyRooms.push(projectId);
+    }
+  });
+  emptyRooms.forEach(projectId => projectRooms.delete(projectId));
+
+  // Limpar locks órfãos (locks de sockets que não existem mais)
+  const orphanLocks: string[] = [];
+  trackLocks.forEach((lock, lockKey) => {
+    const socketExists = io.sockets.sockets.has(lock.socketId);
+    if (!socketExists) {
+      orphanLocks.push(lockKey);
+    }
+  });
+  orphanLocks.forEach(lockKey => trackLocks.delete(lockKey));
+
+  // Limpar locks globais órfãos
+  const orphanGlobalLocks: string[] = [];
+  projectGlobalLocks.forEach((lock, projectId) => {
+    const socketExists = io.sockets.sockets.has(lock.socketId);
+    if (!socketExists) {
+      orphanGlobalLocks.push(projectId);
+    }
+  });
+  orphanGlobalLocks.forEach(projectId => projectGlobalLocks.delete(projectId));
+
+  if (emptyRooms.length > 0 || orphanLocks.length > 0 || orphanGlobalLocks.length > 0) {
+    console.log(`[Cleanup] Removidas ${emptyRooms.length} salas vazias, ${orphanLocks.length} locks órfãos e ${orphanGlobalLocks.length} locks globais órfãos`);
+  }
+}
+
 export const setupCollaborationHandlers = (io: Server) => {
+  // Executar limpeza de memória a cada 5 minutos
+  setInterval(() => cleanupMemory(io), 5 * 60 * 1000);
   // Middleware para autenticação do socket
   io.use(async (socket: SocketWithUser, next) => {
     try {
       const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
       
       if (!token) {
+        console.log('[Socket Auth] Token não fornecido');
         return next(new Error('Token não fornecido'));
       }
 
@@ -55,6 +97,7 @@ export const setupCollaborationHandlers = (io: Server) => {
       });
 
       if (!user) {
+        console.log('[Socket Auth] Usuário não encontrado:', decoded.userId);
         return next(new Error('Usuário não encontrado'));
       }
 
@@ -65,11 +108,33 @@ export const setupCollaborationHandlers = (io: Server) => {
       };
       next();
     } catch (error) {
+      console.error('[Socket Auth] Erro na autenticação:', error);
       next(new Error('Autenticação falhou'));
     }
   });
 
+  // Handler de erros do Socket.IO
+  io.engine.on("connection_error", (err) => {
+    console.error('[Socket.IO] Erro de conexão:', {
+      code: err.code,
+      message: err.message,
+      context: err.context
+    });
+  });
+
   io.on('connection', (socket: SocketWithUser) => {
+    console.log(`[Socket] Nova conexão: ${socket.id} - Usuário: ${socket.user?.name || 'Desconhecido'}`);
+
+    // Adicionar handler de erro no socket
+    socket.on('error', (error) => {
+      console.error(`[Socket] Erro no socket ${socket.id}:`, error);
+    });
+
+    // Adicionar handler para detectar quando a conexão está tendo problemas
+    socket.on('disconnect', (reason) => {
+      console.log(`[Socket] Desconexão ${socket.id} - Razão: ${reason} - Usuário: ${socket.user?.name || 'Desconhecido'}`);
+      handleDisconnect(socket);
+    });
 
     // Entrar em um projeto (sala)
     socket.on('join-project', async (projectId: string) => {
@@ -240,43 +305,51 @@ export const setupCollaborationHandlers = (io: Server) => {
 
     // Atualizar posição do cursor (tempo de playback)
     socket.on('cursor-move', (data: { projectId: string; cursorPosition: number }) => {
-      const { projectId, cursorPosition } = data;
-      const room = projectRooms.get(projectId);
-      
-      if (room && socket.user) {
-        const user = room.users.get(socket.id);
-        if (user) {
-          user.cursorPosition = cursorPosition;
-          
-          // Notificar outros usuários sobre a nova posição do cursor
-          socket.to(projectId).emit('cursor-updated', {
-            userId: socket.user.id,
-            socketId: socket.id,
-            cursorPosition
-          });
+      try {
+        const { projectId, cursorPosition } = data;
+        const room = projectRooms.get(projectId);
+        
+        if (room && socket.user) {
+          const user = room.users.get(socket.id);
+          if (user) {
+            user.cursorPosition = cursorPosition;
+            
+            // Notificar outros usuários sobre a nova posição do cursor
+            socket.to(projectId).emit('cursor-updated', {
+              userId: socket.user.id,
+              socketId: socket.id,
+              cursorPosition
+            });
+          }
         }
+      } catch (error) {
+        console.error('[Socket] Erro em cursor-move:', error);
       }
     });
 
     // Atualizar posição do mouse
     socket.on('mouse-move', (data: { projectId: string; mousePosition: { x: number; y: number } }) => {
-      const { projectId, mousePosition } = data;
-      
-      const room = projectRooms.get(projectId);
-      
-      if (room && socket.user) {
-        const user = room.users.get(socket.id);
-        if (user) {
-          user.mousePosition = mousePosition;
+      try {
+        const { projectId, mousePosition } = data;
+        
+        const room = projectRooms.get(projectId);
+        
+        if (room && socket.user) {
+          const user = room.users.get(socket.id);
+          if (user) {
+            user.mousePosition = mousePosition;
+          }
         }
+        
+        // Propagar para outros usuários no projeto
+        socket.to(projectId).emit('mouse-updated', {
+          userId: socket.user?.id,
+          socketId: socket.id,
+          mousePosition
+        });
+      } catch (error) {
+        console.error('[Socket] Erro em mouse-move:', error);
       }
-      
-      // Propagar para outros usuários no projeto
-      socket.to(projectId).emit('mouse-updated', {
-        userId: socket.user?.id,
-        socketId: socket.id,
-        mousePosition
-      });
     });
 
     // Solicitar bloqueio para editar uma track
@@ -346,6 +419,63 @@ export const setupCollaborationHandlers = (io: Server) => {
       releaseLock(socket, projectId, trackId);
     });
 
+    // Solicitar bloqueio global do projeto (para operações críticas)
+    socket.on('request-project-lock', (data: { projectId: string; operation: string }) => {
+      const { projectId, operation } = data;
+      
+      if (!socket.user) return;
+
+      // VIEWER não pode solicitar bloqueio global
+      const userRole = (socket as any).userRole;
+      if (userRole === 'VIEWER') {
+        socket.emit('project-lock-denied', {
+          message: 'Usuários com permissão de visualização não podem realizar esta operação'
+        });
+        return;
+      }
+
+      // Verificar se o projeto já está bloqueado
+      const existingLock = projectGlobalLocks.get(projectId);
+      
+      if (existingLock && existingLock.socketId !== socket.id) {
+        // Projeto já está bloqueado por outro usuário
+        socket.emit('project-lock-denied', {
+          lockedBy: {
+            userId: existingLock.userId,
+            userName: existingLock.userName,
+            operation: existingLock.operation
+          }
+        });
+        return;
+      }
+
+      // Conceder bloqueio global
+      projectGlobalLocks.set(projectId, {
+        userId: socket.user.id,
+        userName: socket.user.name,
+        socketId: socket.id,
+        operation
+      });
+
+      // Confirmar bloqueio para o solicitante
+      socket.emit('project-lock-granted', { projectId });
+
+      // Notificar outros usuários sobre o bloqueio global
+      socket.to(projectId).emit('project-locked', {
+        userId: socket.user.id,
+        userName: socket.user.name,
+        operation
+      });
+
+      console.log(`[Project Lock] Projeto ${projectId} bloqueado por ${socket.user.name} para operação: ${operation}`);
+    });
+
+    // Liberar bloqueio global do projeto
+    socket.on('release-project-lock', (data: { projectId: string }) => {
+      const { projectId } = data;
+      releaseProjectLock(socket, projectId);
+    });
+
     // Sincronizar mudanças no projeto em tempo real (opcional)
     socket.on('project-update', (data: { projectId: string; changes: any }) => {
       const { projectId, changes } = data;
@@ -367,69 +497,84 @@ export const setupCollaborationHandlers = (io: Server) => {
 
     // Sincronizar adição de track
     socket.on('track-added', (data: { projectId: string; track: any }) => {
-      const { projectId, track } = data;
-      
-      // VIEWER não pode adicionar tracks
-      const userRole = (socket as any).userRole;
-      if (userRole === 'VIEWER') {
-        socket.emit('error', { message: 'Usuários com permissão de visualização não podem adicionar tracks' });
-        return;
+      try {
+        const { projectId, track } = data;
+        
+        // VIEWER não pode adicionar tracks
+        const userRole = (socket as any).userRole;
+        if (userRole === 'VIEWER') {
+          socket.emit('error', { message: 'Usuários com permissão de visualização não podem adicionar tracks' });
+          return;
+        }
+        
+        // Propagar para outros usuários no projeto
+        socket.to(projectId).emit('track-added', {
+          userId: socket.user?.id,
+          userName: socket.user?.name,
+          track
+        });
+        
+        
+        // Verificar quantos sockets estão na sala
+        const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
+      } catch (error) {
+        console.error('[Socket] Erro em track-added:', error);
+        socket.emit('error', { message: 'Erro ao adicionar track' });
       }
-      
-      // Propagar para outros usuários no projeto
-      socket.to(projectId).emit('track-added', {
-        userId: socket.user?.id,
-        userName: socket.user?.name,
-        track
-      });
-      
-      
-      // Verificar quantos sockets estão na sala
-      const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
     });
 
     // Sincronizar atualização de track
     socket.on('track-updated', (data: { projectId: string; trackId: string | number; updates: any }) => {
-      const { projectId, trackId, updates } = data;
-      
-      // VIEWER não pode atualizar tracks
-      const userRole = (socket as any).userRole;
-      if (userRole === 'VIEWER') {
-        socket.emit('error', { message: 'Usuários com permissão de visualização não podem modificar tracks' });
-        return;
+      try {
+        const { projectId, trackId, updates } = data;
+        
+        // VIEWER não pode atualizar tracks
+        const userRole = (socket as any).userRole;
+        if (userRole === 'VIEWER') {
+          socket.emit('error', { message: 'Usuários com permissão de visualização não podem modificar tracks' });
+          return;
+        }
+        
+        // Propagar para outros usuários no projeto
+        const emittedData = {
+          userId: socket.user?.id,
+          userName: socket.user?.name,
+          trackId,
+          updates
+        };
+        
+        socket.to(projectId).emit('track-updated', emittedData);
+        
+        // Verificar quantos sockets estão na sala
+        const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
+      } catch (error) {
+        console.error('[Socket] Erro em track-updated:', error);
+        socket.emit('error', { message: 'Erro ao atualizar track' });
       }
-      
-      // Propagar para outros usuários no projeto
-      const emittedData = {
-        userId: socket.user?.id,
-        userName: socket.user?.name,
-        trackId,
-        updates
-      };
-      
-      socket.to(projectId).emit('track-updated', emittedData);
-      
-      // Verificar quantos sockets estão na sala
-      const socketsInRoom = io.sockets.adapter.rooms.get(projectId);
     });
 
     // Sincronizar deleção de track
     socket.on('track-deleted', (data: { projectId: string; trackId: string | number }) => {
-      const { projectId, trackId } = data;
-      
-      // VIEWER não pode deletar tracks
-      const userRole = (socket as any).userRole;
-      if (userRole === 'VIEWER') {
-        socket.emit('error', { message: 'Usuários com permissão de visualização não podem deletar tracks' });
-        return;
+      try {
+        const { projectId, trackId } = data;
+        
+        // VIEWER não pode deletar tracks
+        const userRole = (socket as any).userRole;
+        if (userRole === 'VIEWER') {
+          socket.emit('error', { message: 'Usuários com permissão de visualização não podem deletar tracks' });
+          return;
+        }
+        
+        // Propagar para outros usuários no projeto
+        socket.to(projectId).emit('track-deleted', {
+          userId: socket.user?.id,
+          userName: socket.user?.name,
+          trackId
+        });
+      } catch (error) {
+        console.error('[Socket] Erro em track-deleted:', error);
+        socket.emit('error', { message: 'Erro ao deletar track' });
       }
-      
-      // Propagar para outros usuários no projeto
-      socket.to(projectId).emit('track-deleted', {
-        userId: socket.user?.id,
-        userName: socket.user?.name,
-        trackId
-      });
     });
 
     // Enviar estado do projeto para um usuário específico
@@ -448,10 +593,6 @@ export const setupCollaborationHandlers = (io: Server) => {
       
     });
 
-    // Desconexão
-    socket.on('disconnect', () => {
-      handleDisconnect(socket);
-    });
   });
 
   // Função auxiliar para liberar bloqueio
@@ -478,6 +619,20 @@ export const setupCollaborationHandlers = (io: Server) => {
     }
   }
 
+  // Função auxiliar para liberar bloqueio global do projeto
+  function releaseProjectLock(socket: SocketWithUser, projectId: string) {
+    const lock = projectGlobalLocks.get(projectId);
+
+    if (lock && lock.socketId === socket.id) {
+      projectGlobalLocks.delete(projectId);
+
+      // Notificar outros usuários
+      socket.to(projectId).emit('project-unlocked', { projectId });
+
+      console.log(`[Project Lock] Projeto ${projectId} desbloqueado por ${socket.user?.name}`);
+    }
+  }
+
   // Função auxiliar para sair de um projeto
   function handleLeaveProject(socket: SocketWithUser, projectId: string) {
     const room = projectRooms.get(projectId);
@@ -489,6 +644,9 @@ export const setupCollaborationHandlers = (io: Server) => {
       if (user && user.editingTrackId) {
         releaseLock(socket, projectId, user.editingTrackId);
       }
+
+      // Liberar bloqueio global do projeto se o usuário tiver
+      releaseProjectLock(socket, projectId);
 
       // Remover usuário da sala
       room.users.delete(socket.id);

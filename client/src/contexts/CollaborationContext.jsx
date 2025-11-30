@@ -260,13 +260,6 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, []);
 
-  // Enviar estado do projeto para um usuário específico
-  const sendProjectState = useCallback((forSocketId, projectState) => {
-    if (isConnected) {
-      collaborationService.sendProjectState(forSocketId, projectState);
-    }
-  }, [isConnected]);
-
   // Gerenciar colaboradores (API REST)
   const getCollaborators = useCallback(async (projectId) => {
     return collaborationService.getCollaborators(projectId);
@@ -312,7 +305,6 @@ export const CollaborationProvider = ({ children }) => {
     notifyTrackAdded,
     notifyTrackUpdated,
     notifyTrackDeleted,
-    sendProjectState,
     getCollaborators,
     addCollaborator,
     updateCollaboratorRole,

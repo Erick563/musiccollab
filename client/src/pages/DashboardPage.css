@@ -320,8 +320,9 @@
 .project-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 1.5rem;
+  gap: 1rem;
 }
 
 .project-header h4 {
@@ -329,25 +330,28 @@
   font-size: 1.3rem;
   color: #333;
   font-weight: 600;
+  flex: 1;
 }
 
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.project-header .share-btn {
+  background: rgba(79, 172, 254, 0.15);
+  border: 1px solid rgba(79, 172, 254, 0.3);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.status-badge.public {
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
-  color: white;
-}
-
-.status-badge.private {
-  background: linear-gradient(135deg, #ff6b6b, #ff8e8e);
-  color: white;
+.project-header .share-btn:hover {
+  background: rgba(79, 172, 254, 0.25);
+  border-color: rgba(79, 172, 254, 0.5);
+  transform: translateY(-2px);
 }
 
 .project-details {
@@ -377,32 +381,7 @@
   gap: 0.75rem;
   align-items: center;
   margin-top: auto;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-
-.action-buttons-group {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.action-btn {
-  background: rgba(79, 172, 254, 0.1);
-  border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 1.2rem;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.action-btn:hover {
-  background: rgba(79, 172, 254, 0.2);
-  transform: translateY(-2px);
+  justify-content: flex-end;
 }
 
 /* Tracks Section */

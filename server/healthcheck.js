@@ -10,7 +10,7 @@
  *   node healthcheck.js
  * 
  * Ou em produção com cron:
- *   */5 * * * * node /path/to/healthcheck.js >> /path/to/healthcheck.log 2>&1
+ *   * /5 * * * * node /path/to/healthcheck.js >> /path/to/healthcheck.log 2>&1
  */
 
 const http = require('http');

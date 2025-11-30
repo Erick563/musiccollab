@@ -105,17 +105,6 @@ const DashboardPage = () => {
     }
   };
 
-  const handleExport = (project, format = 'mp3') => {
-    alert(`Exportando "${project.name}" em formato ${format.toUpperCase()}...`);
-  };
-
-  const handleDownloadMP3 = (project) => {
-    const link = document.createElement('a');
-    link.href = '#';
-    link.download = `${project.name}.mp3`;
-    link.click();
-    alert(`Baixando "${project.name}.mp3"...`);
-  };
 
   return (
     <div className="dashboard-page">
@@ -252,9 +241,16 @@ const DashboardPage = () => {
                 >
                   <div className="project-header">
                     <h4>{project.name}</h4>
-                    <div className="project-status">
-                      <span className="status-badge">{project.status}</span>
-                    </div>
+                    <button 
+                      className="action-btn share-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShare(project);
+                      }}
+                      title="Compartilhar projeto"
+                    >
+                      🔗
+                    </button>
                   </div>
                   
                   <div className="project-details">
@@ -274,38 +270,6 @@ const DashboardPage = () => {
                       <span className="detail-label">Última atualização:</span>
                       <span className="detail-value">{formatDate(project.lastUpdated)}</span>
                     </div>
-                  </div>
-
-                  <div className="project-actions" onClick={(e) => e.stopPropagation()}>
-                    <div className="action-buttons-group">
-                      <button 
-                        className="action-btn"
-                        onClick={() => handleShare(project)}
-                        title="Compartilhar"
-                      >
-                        🔗
-                      </button>
-                      <button 
-                        className="action-btn"
-                        onClick={() => handleExport(project)}
-                        title="Exportar Projeto"
-                      >
-                        📤
-                      </button>
-                      <button 
-                        className="action-btn"
-                        onClick={() => handleDownloadMP3(project)}
-                        title="Baixar MP3"
-                      >
-                        ⬇️
-                      </button>
-                    </div>
-                    <button 
-                      className="btn btn-outline btn-small" 
-                      onClick={() => navigate(`/studio/${project.id}`)}
-                    >
-                      Abrir
-                    </button>
                   </div>
                 </div>
               ))}

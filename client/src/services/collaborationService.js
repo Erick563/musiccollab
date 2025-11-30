@@ -214,16 +214,6 @@ class CollaborationService {
     this.socket.emit('track-deleted', { projectId, trackId });
   }
 
-  // Enviar estado do projeto para um usuário específico
-  sendProjectState(forSocketId, projectState) {
-    if (!this.socket || !this.socket.connected) {
-      console.warn('Socket não conectado ao enviar estado do projeto');
-      return;
-    }
-
-    this.socket.emit('send-project-state', { forSocketId, projectState });
-  }
-
   // Registrar evento
   on(event, handler) {
     if (!this.socket) {

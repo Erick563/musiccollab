@@ -33,7 +33,6 @@ const StudioPage = () => {
     notifyTrackAdded,
     notifyTrackUpdated,
     notifyTrackDeleted,
-    sendProjectState,
     on,
     off
   } = useCollaboration();
@@ -71,8 +70,6 @@ const StudioPage = () => {
   const zoomRef = useRef(1);
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
-  const hasSyncedStateRef = useRef(false);
-  const waitingForSyncRef = useRef(false);
 
   // Manter refs sincronizados para uso em callbacks
   useEffect(() => {
@@ -159,8 +156,66 @@ const StudioPage = () => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  const autoSaveProjectState = useCallback(async (currentTracks, skipToast = false) => {
+    const projectIdToUse = currentProjectId || projectId;
+    
+    if (!projectIdToUse) {
+      console.warn('[Auto-save] Nenhum projeto ativo para salvar');
+      return;
+    }
+
+    try {
+      const projectState = {
+        tracks: currentTracks.map(track => ({
+          id: track.id,
+          trackId: track.trackId || track.id,
+          name: track.name,
+          duration: track.duration,
+          startTime: track.startTime || 0,
+          volume: track.volume || 75,
+          pan: track.pan || 0,
+          solo: track.solo || false,
+          mute: track.mute || false,
+          color: track.color,
+          trimStart: track.trimStart || null,
+          trimEnd: track.trimEnd || null,
+          deletedRegions: track.deletedRegions || [],
+          isSegment: track.isSegment || false
+        })),
+        masterVolume: masterVolumeRef.current,
+        zoom: zoomRef.current,
+        currentTime: currentTimeRef.current
+      };
+
+      const projectData = {
+        title: projectName.trim() || 'Novo Projeto',
+        state: projectState
+      };
+
+      await projectService.updateProject(projectIdToUse, projectData);
+      
+      if (!skipToast) {
+        console.log('[Auto-save] Estado do projeto salvo com sucesso');
+      }
+    } catch (error) {
+      console.error('[Auto-save] Erro ao salvar estado:', error);
+    }
+  }, [currentProjectId, projectId, projectName]);
+
+  const autoSaveSettingsTimerRef = useRef(null);
+  useEffect(() => {
+    if (!currentProjectId || isLoading) return;
+
+    if (autoSaveSettingsTimerRef.current) {
+      clearTimeout(autoSaveSettingsTimerRef.current);
+    }
+
+    autoSaveSettingsTimerRef.current = setTimeout(async () => {
+      await autoSaveProjectState(tracksRef.current, true);
+    }, 1000);
+  }, [masterVolume, zoom, currentProjectId, isLoading, autoSaveProjectState]);
+
   const handleFileUpload = async (file) => {
-    // Bloquear upload para VIEWER
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para adicionar faixas. Sua permissão é apenas de visualização.', 'error');
       return;
@@ -358,15 +413,15 @@ const StudioPage = () => {
     setSelectedTrack(track);
   };
 
-  const handleTrackDelete = useCallback((trackId) => {
-    // Bloquear deleção para VIEWER
+  const handleTrackDelete = useCallback(async (trackId) => {
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para deletar faixas. Sua permissão é apenas de visualização.', 'error');
       return;
     }
 
+    let updatedTracks = [];
     setTracks(prevTracks => {
-      const updatedTracks = prevTracks.filter(t => t.id !== trackId);
+      updatedTracks = prevTracks.filter(t => t.id !== trackId);
 
       if (selectedTrack?.id === trackId) {
         setSelectedTrack(updatedTracks[0] || null);
@@ -382,15 +437,25 @@ const StudioPage = () => {
       return updatedTracks;
     });
 
-    // Notificar outros usuários sobre a deleção
     if (currentProjectId) {
       notifyTrackDeleted(trackId);
+      
+      try {
+        await trackService.deleteTrack(trackId);
+        
+        await autoSaveProjectState(updatedTracks, true);
+        
+        console.log(`[Auto-save] Track ${trackId} deletada do banco e estado salvo`);
+      } catch (error) {
+        console.error('[Auto-save] Erro ao deletar track:', error);
+        showToast('Erro ao deletar track. Tente novamente.', 'error');
+      }
     }
-  }, [selectedTrack, currentProjectId, notifyTrackDeleted, currentUserRole, showToast]);
+  }, [selectedTrack, currentProjectId, notifyTrackDeleted, currentUserRole, showToast, autoSaveProjectState]);
 
-  // Ref para debounce de notificações
   const notificationTimerRef = useRef(null);
   const lockTimerRef = useRef(null);
+  const autoSaveTimerRef = useRef(null);
 
   const handleTrackUpdate = async (trackId, updates) => {
     // Bloquear modificações para VIEWER
@@ -399,7 +464,6 @@ const StudioPage = () => {
       return;
     }
 
-    // Mudanças menores que não precisam de lock
     const isPositionChange = updates.startTime !== undefined && Object.keys(updates).length === 1;
     const isMuteChange = updates.mute !== undefined && Object.keys(updates).length === 1;
     const isSoloChange = updates.solo !== undefined && Object.keys(updates).length === 1;
@@ -408,14 +472,12 @@ const StudioPage = () => {
     const isMinorChange = updates.selectedRegion !== undefined || isPositionChange ||
       isMuteChange || isSoloChange || isVolumeChange || isPanChange;
 
-    // Verificar se a track está bloqueada por outro usuário (apenas para mudanças importantes)
     if (!isMinorChange && isTrackLocked(trackId) && editingTrackId !== trackId) {
       const locker = getTrackLocker(trackId);
       showToast(`Esta track está sendo editada por ${locker?.userName}`, 'warning');
       return;
     }
 
-    // Solicitar bloqueio apenas para mudanças importantes (não para posição ou seleção de região)
     if (!isMinorChange && (!editingTrackId || editingTrackId !== trackId)) {
       try {
         await requestLock(trackId);
@@ -427,17 +489,16 @@ const StudioPage = () => {
       }
     }
 
-    // Atualizar estado local imediatamente
-    setTracks(prevTracks =>
-      prevTracks.map(track =>
+    let updatedTracks = [];
+    setTracks(prevTracks => {
+      updatedTracks = prevTracks.map(track =>
         track.id === trackId ? { ...track, ...updates } : track
-      )
-    );
+      );
+      return updatedTracks;
+    });
 
-    // Notificar outros usuários com debounce para mudanças de posição
     if (currentProjectId && !updates.selectedRegion) {
       if (isPositionChange) {
-        // Debounce para mudanças de posição (evitar spam durante drag)
         if (notificationTimerRef.current) {
           clearTimeout(notificationTimerRef.current);
         }
@@ -450,7 +511,17 @@ const StudioPage = () => {
       }
     }
 
-    // Liberar bloqueio após 3 segundos de inatividade (apenas para mudanças importantes)
+    if (!updates.selectedRegion && currentProjectId) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      
+      const delay = isPositionChange ? 500 : 300;
+      autoSaveTimerRef.current = setTimeout(async () => {
+        await autoSaveProjectState(updatedTracks, true);
+      }, delay);
+    }
+
     if (!isMinorChange) {
       if (lockTimerRef.current) {
         clearTimeout(lockTimerRef.current);
@@ -604,30 +675,6 @@ const StudioPage = () => {
           setTracks(validTracks);
         }
 
-        // Aguardar sincronização de estado de outros usuários (se houver)
-        // Esperar até 2 segundos por estado sincronizado
-        waitingForSyncRef.current = true;
-        hasSyncedStateRef.current = false;
-
-        await new Promise(resolve => {
-          const timeout = setTimeout(() => {
-            waitingForSyncRef.current = false;
-            resolve(null);
-          }, 2000);
-
-          // Verificar periodicamente se recebeu estado sincronizado
-          const checkInterval = setInterval(() => {
-            if (hasSyncedStateRef.current) {
-              clearTimeout(timeout);
-              clearInterval(checkInterval);
-              waitingForSyncRef.current = false;
-              resolve(null);
-            }
-          }, 100);
-        });
-
-        // Marca o projeto como carregado e mostra o toast apenas uma vez
-        // Verifica se ainda é o mesmo projeto que começamos a carregar
         if (!loadingCancelledRef.current && loadedProjectIdRef.current === projectId && !toastShownRef.current) {
           toastShownRef.current = true;
           showToast('Projeto carregado com sucesso!', 'success');
@@ -635,7 +682,6 @@ const StudioPage = () => {
       } catch (error) {
         if (loadingCancelledRef.current) return;
 
-        // Só reseta se ainda for o mesmo projeto que começamos a carregar
         if (loadedProjectIdRef.current === projectId) {
           loadedProjectIdRef.current = null;
           toastShownRef.current = false;
@@ -661,125 +707,11 @@ const StudioPage = () => {
 
     loadProject();
 
-    // Cleanup function para cancelar operações pendentes
     return () => {
       loadingCancelledRef.current = true;
     };
   }, [projectId, navigate, showToast]);
 
-  // Registrar listeners de sincronização ANTES de qualquer outra coisa
-  useEffect(() => {
-
-    const handleRequestProjectState = (data) => {
-
-      // Usar refs para obter o estado mais recente
-      const currentTracks = tracksRef.current;
-      const currentMasterVolume = masterVolumeRef.current;
-      const currentZoom = zoomRef.current;
-      const currentCurrentTime = currentTimeRef.current;
-      const currentDuration = durationRef.current;
-
-      // Criar um snapshot simplificado das tracks (sem arquivos/blobs grandes)
-      const projectState = {
-        tracks: currentTracks.map(track => ({
-          id: track.id,
-          trackId: track.trackId,
-          name: track.name,
-          duration: track.duration,
-          startTime: track.startTime,
-          volume: track.volume,
-          pan: track.pan,
-          solo: track.solo,
-          mute: track.mute,
-          color: track.color,
-          trimStart: track.trimStart,
-          trimEnd: track.trimEnd,
-          deletedRegions: track.deletedRegions,
-          isSegment: track.isSegment,
-          isTemporary: track.isTemporary
-        })),
-        masterVolume: currentMasterVolume,
-        zoom: currentZoom,
-        currentTime: currentCurrentTime,
-        duration: currentDuration
-      };
-
-      sendProjectState(data.forSocketId, projectState);
-    };
-
-    const handleReceiveProjectState = (data) => {
-      const { projectState } = data;
-
-      if (!projectState || !projectState.tracks) {
-        console.warn('Estado do projeto inválido recebido');
-        return;
-      }
-
-
-      // Marcar que recebemos estado sincronizado
-      hasSyncedStateRef.current = true;
-
-      // Aplicar o estado recebido
-      setTracks(prevTracks => {
-
-        // Criar um mapa das tracks existentes por ID
-        const existingTracksMap = new Map(prevTracks.map(t => [t.id, t]));
-
-        // Mesclar tracks: manter as que têm arquivos, adicionar novas do estado recebido
-        const mergedTracks = projectState.tracks.map(receivedTrack => {
-          const existingTrack = existingTracksMap.get(receivedTrack.id);
-
-          if (existingTrack) {
-            // Se já existe, atualizar com os dados recebidos mas manter arquivo/url
-            return {
-              ...existingTrack,
-              ...receivedTrack,
-              url: existingTrack.url,
-              file: existingTrack.file
-            };
-          } else {
-            // Se não existe, adicionar como nova track
-            // Se for temporária (não salva), não terá url/file
-            return {
-              ...receivedTrack,
-              url: null,
-              file: null,
-              isPlaceholder: receivedTrack.isTemporary
-            };
-          }
-        });
-
-        // Adicionar tracks que existem localmente mas não foram recebidas
-        prevTracks.forEach(track => {
-          if (!projectState.tracks.find(t => t.id === track.id)) {
-            mergedTracks.push(track);
-          }
-        });
-
-        return mergedTracks;
-      });
-
-      // Aplicar outras configurações do estado
-      if (projectState.masterVolume !== undefined) {
-        setMasterVolume(projectState.masterVolume);
-      }
-      if (projectState.zoom !== undefined) {
-        setZoom(projectState.zoom);
-      }
-
-      showToast(`Estado sincronizado com ${data.fromUserName}`, 'info', 2000);
-    };
-
-    on('request-project-state', handleRequestProjectState);
-    on('receive-project-state', handleReceiveProjectState);
-
-    return () => {
-      off('request-project-state', handleRequestProjectState);
-      off('receive-project-state', handleReceiveProjectState);
-    };
-  }, [sendProjectState, on, off, showToast]);
-
-  // Entrar/sair do projeto via WebSocket para colaboração
   useEffect(() => {
     if (currentProjectId && user) {
       joinProject(currentProjectId);

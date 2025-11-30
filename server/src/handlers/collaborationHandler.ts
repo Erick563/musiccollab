@@ -279,19 +279,6 @@ export const setupCollaborationHandlers = (io: Server) => {
 
         socket.emit('locked-tracks', lockedTracks);
 
-        // Solicitar estado atual do projeto de um usuário já conectado
-        // Enviar para o primeiro usuário encontrado (exceto o novo usuário)
-        const existingUsers = Array.from(room.users.values()).filter(u => u.socketId !== socket.id);
-
-        // Pedir ao primeiro usuário conectado para enviar seu estado
-        if (existingUsers.length > 0) {
-          const firstUser = existingUsers[0];
-          io.to(firstUser.socketId).emit('request-project-state', {
-            forUserId: socket.user.id,
-            forSocketId: socket.id
-          });
-        }
-
       } catch (error) {
         console.error('Erro ao entrar no projeto:', error);
         socket.emit('error', { message: 'Erro ao entrar no projeto' });
@@ -577,21 +564,6 @@ export const setupCollaborationHandlers = (io: Server) => {
       }
     });
 
-    // Enviar estado do projeto para um usuário específico
-    socket.on('send-project-state', (data: { forSocketId: string; projectState: any }) => {
-      const { forSocketId, projectState } = data;
-      
-      if (projectState?.tracks) {
-      }
-      
-      // Enviar estado apenas para o usuário específico
-      io.to(forSocketId).emit('receive-project-state', {
-        fromUserId: socket.user?.id,
-        fromUserName: socket.user?.name,
-        projectState
-      });
-      
-    });
 
   });
 

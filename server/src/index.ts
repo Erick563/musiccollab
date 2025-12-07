@@ -30,11 +30,17 @@ server.timeout = 120000; // 120 segundos
 server.keepAliveTimeout = 65000; // 65 segundos (maior que o padrão de load balancers)
 server.headersTimeout = 66000; // 66 segundos (deve ser maior que keepAliveTimeout)
 
-// Configurar Socket.IO para aceitar conexões da rede local
+// Configurar Socket.IO para aceitar conexões da rede local e produção
 const socketCorsOrigin = process.env.SOCKET_CORS_ORIGIN;
+const allowedSocketOrigins = ['https://musiccollab-frontend.onrender.com'];
+
+if (socketCorsOrigin) {
+  allowedSocketOrigins.push(...socketCorsOrigin.split(',').map(o => o.trim()));
+}
+
 const io = new Server(server, {
   cors: {
-    origin: socketCorsOrigin ? socketCorsOrigin.split(',') : true, // Permitir todas as origens se não especificado
+    origin: allowedSocketOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -69,7 +75,7 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Configurar CORS para aceitar requisições da rede local
+// Configurar CORS para aceitar requisições da rede local e produção
 const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Permitir requisições sem origin (mobile apps, Postman, etc)
@@ -87,17 +93,28 @@ const corsOptions = {
       /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+$/
     ];
     
+    // Adicionar origens de produção permitidas
+    const allowedProductionOrigins = [
+      'https://musiccollab-frontend.onrender.com'
+    ];
+    
+    // Se CORS_ORIGIN estiver definido (para permitir outros domínios), também permitir
+    if (process.env.CORS_ORIGIN) {
+      const origins = process.env.CORS_ORIGIN.split(',');
+      origins.forEach(o => allowedProductionOrigins.push(o.trim()));
+    }
+    
     // Se SOCKET_CORS_ORIGIN estiver definido, também permitir
     if (process.env.SOCKET_CORS_ORIGIN) {
       const origins = process.env.SOCKET_CORS_ORIGIN.split(',');
-      origins.forEach(o => {
-        allowedOrigins.push(new RegExp('^' + o.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
-      });
+      origins.forEach(o => allowedProductionOrigins.push(o.trim()));
     }
     
-    const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
+    // Verificar se a origin está nas listas permitidas
+    const isAllowedPattern = allowedOrigins.some(pattern => pattern.test(origin));
+    const isAllowedExact = allowedProductionOrigins.includes(origin);
     
-    if (isAllowed) {
+    if (isAllowedPattern || isAllowedExact) {
       console.log('[CORS] Origin permitida:', origin);
       callback(null, true); // Allow the request
     } else {

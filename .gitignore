@@ -112,3 +112,6 @@ audio-files/
 
 # Docker
 docker-compose.override.yml
+
+# TCC
+TCC/

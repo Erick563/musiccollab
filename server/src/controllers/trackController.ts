@@ -1,14 +1,14 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { prisma } from '../config/database';
-import multer from 'multer';
+import multer, { FileFilterCallback } from 'multer';
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: Express.Request, file: Express.Multer.File, cb: FileFilterCallback) => {
     const allowedMimeTypes = [
       'audio/mpeg',
       'audio/wav',

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { 
   register, 
   login, 
@@ -11,7 +11,7 @@ import { authenticateToken } from '../middleware/auth';
 const router = Router();
 
 // Health check endpoint - não requer autenticação
-router.get('/health', (req, res) => {
+router.get('/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'OK',
     timestamp: new Date().toISOString(),

@@ -1,19 +1,59 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './CollaborativeCursor.css';
 
 const CollaborativeCursor = ({ user, containerRef }) => {
+  const [position, setPosition] = useState({ left: 0, top: 0 });
+
+  useEffect(() => {
+    if (!user.mousePosition || !containerRef.current) {
+      return;
+    }
+
+    const updatePosition = () => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const rect = container.getBoundingClientRect();
+      const { x, y } = user.mousePosition;
+
+      // Converter porcentagem para pixels usando as dimensões reais do container
+      const leftPx = (x / 100) * rect.width;
+      const topPx = (y / 100) * rect.height;
+
+      setPosition({
+        left: leftPx,
+        top: topPx
+      });
+    };
+
+    updatePosition();
+
+    // Atualizar posição quando houver resize ou scroll
+    const handleResize = () => updatePosition();
+    window.addEventListener('resize', handleResize);
+    
+    // Observer para mudanças no container (zoom, etc.)
+    const resizeObserver = new ResizeObserver(updatePosition);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+    };
+  }, [user.mousePosition, containerRef]);
+
   if (!user.mousePosition || !containerRef.current) {
     return null;
   }
-
-  const { x, y } = user.mousePosition;
 
   return (
     <div
       className="collaborative-cursor"
       style={{
-        left: `${x}%`,
-        top: `${y}%`,
+        left: `${position.left}px`,
+        top: `${position.top}px`,
         pointerEvents: 'none',
         position: 'absolute',
         zIndex: 10000,

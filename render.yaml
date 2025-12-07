@@ -1,0 +1,59 @@
+services:
+  # Backend (Node.js + Express + Socket.IO)
+  - type: web
+    name: musiccollab-backend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd server && npm ci && npm run build && npx prisma generate && npx prisma migrate deploy
+    startCommand: cd server && npm start
+    healthCheckPath: /api/auth/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: musiccollab-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: SOCKET_CORS_ORIGIN
+        value: https://musiccollab-frontend.onrender.com
+      - key: UPLOAD_PATH
+        value: ./uploads
+      - key: MAX_FILE_SIZE
+        value: 50000000
+      - key: ALLOWED_AUDIO_TYPES
+        value: mp3,wav,flac,aac,m4a
+
+  # Frontend (React)
+  - type: web
+    name: musiccollab-frontend
+    env: static
+    region: oregon
+    plan: free
+    buildCommand: cd client && npm ci && npm run build
+    staticPublishPath: client/build
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://musiccollab-backend.onrender.com
+      - key: REACT_APP_WS_URL
+        value: https://musiccollab-backend.onrender.com
+
+# Banco de dados PostgreSQL
+databases:
+  - name: musiccollab-db
+    databaseName: musiccollab
+    user: musiccollab
+    plan: free
+    region: oregon
+    connectionString: postgresql://musiccollab_db_user:aG3cJmM93Io6VSUAOCYHGLsqcmM6WGuV@dpg-d4qp1d95pdvs738rvmp0-a/musiccollab_db

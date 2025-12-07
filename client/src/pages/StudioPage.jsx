@@ -2066,7 +2066,18 @@ const StudioPage = () => {
           ) : (
             <>
               <TimelineRuler duration={duration} />
+              
               <div className="timeline-tracks">
+                {/* Cursor de reprodução global (atravessa todas as tracks) */}
+                {duration > 0 && (
+                  <div 
+                    className="global-playhead"
+                    style={{ 
+                      left: `calc(250px + (100% - 250px) * ${currentTime / duration})` 
+                    }}
+                  />
+                )}
+                
                 {tracks.map(track => {
                   const hasSoloedTracks = tracks.some(t => t.solo);
 

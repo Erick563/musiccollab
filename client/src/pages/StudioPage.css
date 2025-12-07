@@ -464,6 +464,31 @@
   position: relative;
 }
 
+/* Global Playhead (cursor de reprodução que atravessa todas as tracks) */
+.global-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ff4444;
+  box-shadow: 0 0 10px #ff4444;
+  pointer-events: none;
+  z-index: 100;
+  transition: left 0.1s linear;
+}
+
+.global-playhead::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid #ff4444;
+}
+
 /* Empty State */
 .empty-state {
   display: flex;

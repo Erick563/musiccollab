@@ -473,13 +473,6 @@ const TimelineTrack = ({
           onSeek={handleRegionSeek}
           isReadOnly={isReadOnly}
         />
-        
-        {maxDuration > 0 && trackDuration > 0 && currentTime >= trackStartTime && currentTime <= (trackStartTime + trackDuration) && (
-          <div 
-            className="track-playhead"
-            style={{ left: `${((currentTime - trackStartTime) / trackDuration) * 100}%` }}
-          />
-        )}
           </div>
         </div>
       </div>

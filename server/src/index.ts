@@ -119,15 +119,20 @@ const corsOptions = {
       callback(null, true); // Allow the request
     } else {
       console.log('[CORS] Origin BLOQUEADA:', origin);
-      callback(null, false); // Explicitly deny
+      callback(new Error('Not allowed by CORS')); // Send error with proper headers
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200 // For legacy browsers
 };
 
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('combined', { stream: { write: (message: string) => logger.info(message.trim()) } }));

@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 export const config = {
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/musiccollab',
+    url: 'postgresql://musiccollab_db_user:aG3cJmM93Io6VSUAOCYHGLsqcmM6WGuV@dpg-d4qp1d95pdvs738rvmp0-a/musiccollab_db',
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',

@@ -8,7 +8,6 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import os from 'os';
-import path from 'path';
 
 import { config, connectDatabase } from './config/database';
 import { logger } from './utils/logger';
@@ -120,24 +119,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tracks', trackRoutes);
 
-// Servir arquivos estáticos do React em produção
-if (isProduction) {
-  const clientBuildPath = path.join(__dirname, '../../client/build');
-  app.use(express.static(clientBuildPath));
-  
-  // Para todas as rotas que não são API, servir o index.html do React (SPA)
-  // Rotas da API não encontradas serão tratadas pelo middleware notFound abaixo
-  app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    // Se for rota da API, passar para o próximo middleware (notFound)
-    if (req.path.startsWith('/api')) {
-      return next();
-    }
-    // Caso contrário, servir o index.html do React
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
-  });
-}
-
-// Middleware para rotas não encontradas (principalmente rotas da API)
+// Middleware para rotas não encontradas
 app.use(notFound);
 app.use(errorHandler);
 

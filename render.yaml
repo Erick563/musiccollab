@@ -34,7 +34,6 @@ services:
   - type: web
     name: musiccollab-frontend
     env: static
-    plan: free
     buildCommand: cd client && npm ci && npm run build
     staticPublishPath: client/build
     routes:

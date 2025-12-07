@@ -2,7 +2,7 @@ import { io } from 'socket.io-client';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
-const SOCKET_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3001';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3001';
 
 class CollaborationService {
   constructor() {
@@ -18,16 +18,31 @@ class CollaborationService {
       return this.socket;
     }
 
+    // Em produção, preferir polling primeiro (mais confiável em plataformas como Render)
+    const isProduction = SOCKET_URL.includes('onrender.com') || SOCKET_URL.includes('https://');
+    
     this.socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      // Em produção, começar com polling (mais confiável) e permitir upgrade para websocket
+      transports: isProduction ? ['polling', 'websocket'] : ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 10,
+      // Configurações adicionais para produção
+      timeout: 20000, // Aumentar timeout para conexão inicial
+      forceNew: false,
+      upgrade: true, // Permitir upgrade de polling para websocket
+      rememberUpgrade: true, // Lembrar do upgrade bem-sucedido
+      // Configurações de transporte
+      path: '/socket.io/',
+      secure: isProduction,
+      rejectUnauthorized: false
     });
 
     this.socket.on('connect', () => {
       console.log('✅ Socket conectado! ID:', this.socket.id);
+      console.log('🔌 Transporte:', this.socket.io.engine.transport.name);
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -36,6 +51,23 @@ class CollaborationService {
 
     this.socket.on('error', (error) => {
       console.error('❌ Erro no socket:', error);
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('❌ Erro ao conectar socket:', error.message);
+      console.log('🔄 Tentando reconectar...');
+    });
+
+    this.socket.io.on('reconnect', (attempt) => {
+      console.log('✅ Socket reconectado após', attempt, 'tentativas');
+    });
+
+    this.socket.io.on('reconnect_error', (error) => {
+      console.error('❌ Erro ao reconectar:', error.message);
+    });
+
+    this.socket.io.on('reconnect_failed', () => {
+      console.error('❌ Falha ao reconectar após todas as tentativas');
     });
 
     return this.socket;

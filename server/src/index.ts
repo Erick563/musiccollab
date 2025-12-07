@@ -49,13 +49,20 @@ const io = new Server(server, {
   pingInterval: 25000, // 25 segundos - intervalo entre pings
   connectTimeout: 45000, // 45 segundos - timeout para conexão inicial
   maxHttpBufferSize: 1e8, // 100 MB - limite de dados por mensagem
-  // Configurações de transporte
-  transports: ['websocket', 'polling'],
+  // Configurações de transporte - permitir polling e websocket
+  transports: ['polling', 'websocket'],
   allowUpgrades: true,
+  upgradeTimeout: 10000,
   // Configurações adicionais de performance
   perMessageDeflate: {
     threshold: 1024 // Comprimir mensagens maiores que 1KB
-  }
+  },
+  // Configurações de cookie para autenticação (se necessário)
+  cookie: false,
+  // Configurações adicionais para produção
+  serveClient: false,
+  // Path padrão
+  path: '/socket.io/'
 });
 
 const PORT = process.env.PORT || 3001;
@@ -136,6 +143,27 @@ app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('combined', { stream: { write: (message: string) => logger.info(message.trim()) } }));
+
+// Health check e status endpoints
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+app.get('/api/status', (req: Request, res: Response) => {
+  const connectedSockets = io.sockets.sockets.size;
+  res.json({ 
+    status: 'ok', 
+    socketio: {
+      connected: connectedSockets,
+      transports: ['polling', 'websocket']
+    },
+    timestamp: new Date().toISOString()
+  });
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);

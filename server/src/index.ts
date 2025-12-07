@@ -115,6 +115,21 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('combined', { stream: { write: (message: string) => logger.info(message.trim()) } }));
 
+// Rota raiz para informações da API
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    message: 'MusicCollab API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      auth: '/api/auth',
+      projects: '/api/projects',
+      tracks: '/api/tracks',
+      health: '/api/auth/health'
+    }
+  });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tracks', trackRoutes);

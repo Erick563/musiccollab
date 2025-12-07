@@ -42,8 +42,8 @@ services:
         destination: /index.html
     envVars:
       - key: REACT_APP_API_URL
-        value: https://musiccollab-backend.onrender.com
-      - key: REACT_APP_WS_URL
+        value: https://musiccollab-backend.onrender.com/api
+      - key: REACT_APP_SOCKET_URL
         value: https://musiccollab-backend.onrender.com
 
 # Banco de dados PostgreSQL

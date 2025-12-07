@@ -19,7 +19,6 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-        sync: false
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: SOCKET_CORS_ORIGIN
@@ -35,7 +34,6 @@ services:
   - type: web
     name: musiccollab-frontend
     env: static
-    region: oregon
     plan: free
     buildCommand: cd client && npm ci && npm run build
     staticPublishPath: client/build

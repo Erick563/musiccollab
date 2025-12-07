@@ -30,7 +30,7 @@ api.interceptors.response.use(
 );
 
 export const trackService = {
-  async createTrack(projectId, file, trackData = {}) {
+  async createTrack(projectId, file, trackData = {}, onProgress = null) {
     const formData = new FormData();
     formData.append('audio', file);
     formData.append('projectId', projectId);
@@ -41,11 +41,23 @@ export const trackService = {
     if (trackData.pan !== undefined) formData.append('pan', trackData.pan);
     if (trackData.color) formData.append('color', trackData.color);
 
+    console.log(`[TrackService] Iniciando upload de ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+
     const response = await api.post('/tracks', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 300000, // 5 minutos de timeout para uploads
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        console.log(`[TrackService] Upload progress: ${percentCompleted}%`);
+        if (onProgress) {
+          onProgress(percentCompleted);
+        }
+      },
     });
+    
+    console.log(`[TrackService] Upload concluído com sucesso!`);
     return response.data.track;
   },
 

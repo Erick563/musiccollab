@@ -136,6 +136,11 @@ export const setupCollaborationHandlers = (io: Server) => {
       handleDisconnect(socket);
     });
 
+    // Handler de ping para manter a conexão viva (útil durante uploads longos)
+    socket.on('ping', () => {
+      socket.emit('pong');
+    });
+
     // Entrar em um projeto (sala)
     socket.on('join-project', async (projectId: string) => {
       try {

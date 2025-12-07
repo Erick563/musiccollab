@@ -40,10 +40,12 @@ export const CollaborationProvider = ({ children }) => {
 
         // Eventos do socket
         collaborationService.on('connect', () => {
+          console.log('✅ WebSocket conectado no CollaborationContext');
           setIsConnected(true);
         });
 
-        collaborationService.on('disconnect', () => {
+        collaborationService.on('disconnect', (reason) => {
+          console.log('❌ WebSocket desconectado no CollaborationContext. Razão:', reason);
           setIsConnected(false);
           setOnlineUsers([]);
         });

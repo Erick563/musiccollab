@@ -80,7 +80,10 @@ const limiter = rateLimit({
   max: 100,
   message: 'Muitas tentativas de acesso, tente novamente em 15 minutos.'
 });
-app.use('/api/', limiter);
+
+// Aplicar rate limit apenas em rotas específicas (excluir uploads)
+app.use('/api/auth', limiter);
+app.use('/api/projects', limiter);
 
 // Configurar CORS para aceitar requisições da rede local e produção
 const corsOptions = {
@@ -139,6 +142,19 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
+
+// Aumentar timeout para todas as requisições (especialmente útil para uploads)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Timeout maior para uploads de áudio
+  if (req.path.includes('/api/tracks') && req.method === 'POST') {
+    req.setTimeout(300000); // 5 minutos para uploads
+    res.setTimeout(300000);
+  } else {
+    req.setTimeout(120000); // 2 minutos para outras requisições
+    res.setTimeout(120000);
+  }
+  next();
+});
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

@@ -55,6 +55,9 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // Log de início do upload para debug
+    console.log(`[Upload] Iniciando upload de ${file.originalname} (${(file.buffer.length / 1024 / 1024).toFixed(2)}MB) para o projeto ${projectId}`);
+
     // Verificar se o usuário tem permissão para adicionar tracks (não pode ser VIEWER)
     const project = await prisma.project.findFirst({
       where: {
@@ -73,12 +76,9 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
           }
         ]
       },
-      include: {
-        collaborators: {
-          where: {
-            userId: req.user.id
-          }
-        }
+      select: {
+        id: true,
+        ownerId: true
       }
     });
 
@@ -89,9 +89,11 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    const audioBuffer = Buffer.from(file.buffer);
-    const fileSize = audioBuffer.length;
-
+    // Processar buffer de forma mais eficiente
+    const fileSize = file.buffer.length;
+    
+    console.log(`[Upload] Salvando track no banco de dados...`);
+    
     const track = await prisma.track.create({
       data: {
         name: name || file.originalname.replace(/\.[^/.]+$/, ''),
@@ -99,11 +101,13 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
         filePath: file.originalname,
         fileSize: fileSize,
         mimeType: file.mimetype,
-        audioData: audioBuffer,
+        audioData: file.buffer, // Usar diretamente o buffer sem conversão
         duration: null,
         projectId: projectId
       }
     });
+
+    console.log(`[Upload] Track ${track.id} criada com sucesso!`);
 
     return res.status(201).json({
       success: true,
@@ -121,6 +125,7 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       }
     });
   } catch (error: any) {
+    console.error('[Upload] Erro ao criar track:', error);
     return res.status(500).json({
       success: false,
       message: error.message || 'Erro interno do servidor'

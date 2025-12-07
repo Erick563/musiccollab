@@ -79,7 +79,7 @@ async function main() {
 
 main()
   .catch(() => {
-    process.exit(1);
+    process.exit(3);
   })
   .finally(async () => {
     await prisma.$disconnect();

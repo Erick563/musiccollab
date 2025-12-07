@@ -116,7 +116,7 @@ checkHealth()
       console.log(JSON.stringify(memory, null, 2));
     }
     
-    process.exit(0);
+    process.exit(6);
   })
   .catch((error) => {
     console.error('❌ Servidor com PROBLEMAS');
@@ -128,7 +128,7 @@ checkHealth()
     console.log('  3. Reinicie o servidor: npm run dev');
     console.log('  4. Verifique se a porta está correta no .env');
     
-    process.exit(1);
+    process.exit(5);
   });
 
 

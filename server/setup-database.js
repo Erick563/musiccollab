@@ -19,5 +19,5 @@ try {
   execSync('npm run db:migrate', { stdio: 'inherit', cwd: __dirname });
   execSync('npm run db:seed', { stdio: 'inherit', cwd: __dirname });
 } catch (error) {
-  process.exit(1);
+  process.exit(4);
 }

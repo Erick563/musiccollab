@@ -33,7 +33,7 @@ export const connectDatabase = async () => {
   try {
     await prisma.$connect();
   } catch (error) {
-    process.exit(1);
+    process.exit(2);
   }
 };
 

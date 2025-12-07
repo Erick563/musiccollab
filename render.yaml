@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     buildCommand: cd server && npm ci && npm run build && npx prisma generate
-    startCommand: cd server && npx prisma migrate deploy && npm start
+    startCommand: cd server && npm start
     healthCheckPath: /api/auth/health
     envVars:
       - key: NODE_ENV

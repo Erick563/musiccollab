@@ -31,9 +31,13 @@ export const prisma = new PrismaClient({
 
 export const connectDatabase = async () => {
   try {
+    console.log('🔄 Conectando ao banco de dados...');
     await prisma.$connect();
+    console.log('✅ Conectado ao banco de dados com sucesso!');
   } catch (error) {
-    process.exit(2);
+    console.error('❌ Erro ao conectar ao banco de dados:', error);
+    console.error('DATABASE_URL:', process.env.DATABASE_URL ? 'Definida' : 'NÃO DEFINIDA');
+    throw error; // Lançar erro ao invés de exit(2) para ver a stack trace completa
   }
 };
 

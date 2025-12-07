@@ -144,37 +144,52 @@ app.use(errorHandler);
 // Configurar handlers de colaboração WebSocket
 setupCollaborationHandlers(io);
 
-server.listen(PORT as number, HOST as string, async () => {
-  await connectDatabase();
-  
-  // Obter IP da máquina na rede local
-  const networkInterfaces = os.networkInterfaces();
-  const localIPs: string[] = [];
-  
-  Object.keys(networkInterfaces).forEach((interfaceName) => {
-    const addresses = networkInterfaces[interfaceName];
-    if (addresses) {
-      addresses.forEach((address) => {
-        // Compatível com Node.js antigo (family === 'IPv4') e novo (family === 4)
-        const family = address.family;
-        const isIPv4 = family === 'IPv4' || (typeof family === 'number' && family === 4);
-        if (isIPv4 && !address.internal) {
-          localIPs.push(address.address);
+const startServer = async () => {
+  try {
+    // Conectar ao banco ANTES de iniciar o servidor
+    await connectDatabase();
+    
+    server.listen(PORT as number, HOST as string, () => {
+      // Obter IP da máquina na rede local
+      const networkInterfaces = os.networkInterfaces();
+      const localIPs: string[] = [];
+      
+      Object.keys(networkInterfaces).forEach((interfaceName) => {
+        const addresses = networkInterfaces[interfaceName];
+        if (addresses) {
+          addresses.forEach((address) => {
+            // Compatível com Node.js antigo (family === 'IPv4') e novo (family === 4)
+            const family = address.family;
+            const isIPv4 = family === 'IPv4' || (typeof family === 'number' && family === 4);
+            if (isIPv4 && !address.internal) {
+              localIPs.push(address.address);
+            }
+          });
         }
       });
-    }
-  });
-  
-  logger.info(`🚀 Servidor rodando na porta ${PORT}`);
-  logger.info(`🌐 Acessível em:`);
-  logger.info(`   - http://localhost:${PORT}`);
-  logger.info(`   - http://127.0.0.1:${PORT}`);
-  if (localIPs.length > 0) {
-    localIPs.forEach(ip => {
-      logger.info(`   - http://${ip}:${PORT}`);
+      
+      logger.info(`🚀 Servidor rodando na porta ${PORT}`);
+      logger.info(`🌐 Acessível em:`);
+      logger.info(`   - http://localhost:${PORT}`);
+      logger.info(`   - http://127.0.0.1:${PORT}`);
+      if (localIPs.length > 0) {
+        localIPs.forEach(ip => {
+          logger.info(`   - http://${ip}:${PORT}`);
+        });
+      }
+      logger.info(`📡 Socket.IO configurado com colaboração em tempo real`);
     });
+  } catch (error) {
+    logger.error('❌ Falha ao iniciar servidor:', error);
+    logger.error('💡 Verifique se:');
+    logger.error('   1. A variável DATABASE_URL está configurada corretamente');
+    logger.error('   2. O banco de dados PostgreSQL está acessível');
+    logger.error('   3. As credenciais de conexão estão corretas');
+    process.exit(1);
   }
-  logger.info(`📡 Socket.IO configurado com colaboração em tempo real`);
-});
+};
+
+// Iniciar o servidor
+startServer();
 
 export { app, server, io };

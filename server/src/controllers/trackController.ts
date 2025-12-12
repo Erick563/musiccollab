@@ -6,7 +6,7 @@ import multer, { FileFilterCallback } from 'multer';
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 20 * 1024 * 1024, // 20MB (reduzido de 50MB para evitar out of memory no Render free plan)
   },
   fileFilter: (req: Express.Request, file: Express.Multer.File, cb: FileFilterCallback) => {
     const allowedMimeTypes = [
@@ -225,7 +225,8 @@ export const downloadTrackAudio = async (req: AuthRequest, res: Response) => {
         name: true,
         mimeType: true,
         audioData: true,
-        filePath: true
+        filePath: true,
+        fileSize: true
       }
     });
 
@@ -240,14 +241,21 @@ export const downloadTrackAudio = async (req: AuthRequest, res: Response) => {
 
     res.setHeader('Content-Type', track.mimeType || 'audio/mpeg');
     res.setHeader('Content-Disposition', `attachment; filename="${track.filePath || track.name}.mp3"`);
-    res.setHeader('Content-Length', audioBuffer.length);
+    res.setHeader('Content-Length', track.fileSize || audioBuffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
 
-    return res.send(audioBuffer);
+    return res.end(audioBuffer);
   } catch (error) {
+    console.error('[Download Track] Erro ao baixar áudio:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
     });
+  } finally {
+    // Forçar garbage collection após download
+    if (global.gc) {
+      global.gc();
+    }
   }
 };
 
@@ -282,7 +290,8 @@ export const getTrackAudio = async (req: AuthRequest, res: Response) => {
         id: true,
         name: true,
         mimeType: true,
-        audioData: true
+        audioData: true,
+        fileSize: true
       }
     });
 
@@ -293,20 +302,44 @@ export const getTrackAudio = async (req: AuthRequest, res: Response) => {
       });
     }
 
+    // SOLUÇÃO 1: Streaming em vez de base64 (reduz uso de memória em ~60%)
     const audioBuffer = Buffer.from((track as any).audioData);
-    const base64Audio = audioBuffer.toString('base64');
-    const dataUrl = `data:${track.mimeType || 'audio/mpeg'};base64,${base64Audio}`;
-
-    return res.json({
-      success: true,
-      audioUrl: dataUrl,
-      mimeType: track.mimeType
-    });
+    
+    // Configurar headers para streaming
+    res.setHeader('Content-Type', track.mimeType || 'audio/mpeg');
+    res.setHeader('Content-Length', track.fileSize || audioBuffer.length);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    
+    // Suportar Range requests para melhor performance
+    const range = req.headers.range;
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : audioBuffer.length - 1;
+      const chunksize = (end - start) + 1;
+      
+      res.status(206); // Partial Content
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${audioBuffer.length}`);
+      res.setHeader('Content-Length', chunksize);
+      
+      return res.end(audioBuffer.slice(start, end + 1));
+    }
+    
+    // Enviar stream completo
+    res.status(200);
+    return res.end(audioBuffer);
   } catch (error) {
+    console.error('[Track Audio] Erro ao buscar áudio:', error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor'
     });
+  } finally {
+    // SOLUÇÃO 2: Forçar garbage collection após envio (Node.js ≥ 14)
+    if (global.gc) {
+      global.gc();
+    }
   }
 };
 

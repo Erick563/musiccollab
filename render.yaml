@@ -11,6 +11,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=460 --expose-gc
       - key: PORT
         value: 3001
       - key: DATABASE_URL
@@ -26,7 +28,7 @@ services:
       - key: UPLOAD_PATH
         value: ./uploads
       - key: MAX_FILE_SIZE
-        value: 50000000
+        value: 20000000
       - key: ALLOWED_AUDIO_TYPES
         value: mp3,wav,flac,aac,m4a
 

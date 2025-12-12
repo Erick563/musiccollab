@@ -11,8 +11,11 @@ export const authenticateToken = async (
   next: NextFunction
 ) => {
   try {
+    // Aceitar token do header Authorization ou query parameter (para streaming de áudio)
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
+    const headerToken = authHeader && authHeader.split(' ')[1];
+    const queryToken = req.query.token as string;
+    const token = headerToken || queryToken;
 
     if (!token) {
       return res.status(401).json({

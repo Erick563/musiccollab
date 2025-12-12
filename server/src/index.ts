@@ -143,9 +143,18 @@ app.use(cors(corsOptions));
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
-// Aumentar timeout para todas as requisições (especialmente útil para uploads)
+// Middleware de monitoramento de memória
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Timeout maior para uploads de áudio
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  
+  // Se memória heap usada > 400MB (80% de 512MB), forçar garbage collection
+  if (heapUsedMB > 400 && global.gc) {
+    logger.warn(`⚠️ Alto uso de memória detectado: ${heapUsedMB}MB. Executando garbage collection...`);
+    global.gc();
+  }
+  
+  // Aumentar timeout para todas as requisições (especialmente útil para uploads)
   if (req.path.includes('/api/tracks') && req.method === 'POST') {
     req.setTimeout(300000); // 5 minutos para uploads
     res.setTimeout(300000);
@@ -156,8 +165,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '25mb' })); // Reduzido de 50mb para 25mb
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(morgan('combined', { stream: { write: (message: string) => logger.info(message.trim()) } }));
 
 // Health check e status endpoints
@@ -171,11 +180,17 @@ app.get('/health', (req: Request, res: Response) => {
 
 app.get('/api/status', (req: Request, res: Response) => {
   const connectedSockets = io.sockets.sockets.size;
+  const memoryUsage = process.memoryUsage();
   res.json({ 
     status: 'ok', 
     socketio: {
       connected: connectedSockets,
       transports: ['polling', 'websocket']
+    },
+    memory: {
+      heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`,
+      rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`
     },
     timestamp: new Date().toISOString()
   });
@@ -191,6 +206,25 @@ app.use(errorHandler);
 
 // Configurar handlers de colaboração WebSocket
 setupCollaborationHandlers(io);
+
+// Monitoramento periódico de memória (a cada 30 segundos)
+setInterval(() => {
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+  const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+  
+  logger.info(`📊 Memória: Heap ${heapUsedMB}/${heapTotalMB}MB | RSS ${rssMB}MB`);
+  
+  // Se memória estiver muito alta (>450MB), alertar
+  if (heapUsedMB > 450) {
+    logger.warn(`⚠️ ALERTA: Uso de memória crítico: ${heapUsedMB}MB!`);
+    if (global.gc) {
+      global.gc();
+      logger.info('🧹 Garbage collection executado');
+    }
+  }
+}, 30000);
 
 const startServer = async () => {
   try {

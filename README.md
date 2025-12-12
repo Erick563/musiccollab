@@ -216,22 +216,69 @@ npm start
 
 ## 🧪 Testes
 
-### Executar testes do servidor
+O projeto possui uma suíte completa de testes unitários para backend e frontend. Consulte [TESTES.md](./TESTES.md) para documentação detalhada.
+
+### Scripts Rápidos
+
+**Windows:**
+```bash
+# Executar todos os testes
+run-tests.bat all
+
+# Apenas backend
+run-tests.bat backend
+
+# Apenas frontend
+run-tests.bat frontend
+
+# Com cobertura de código
+run-tests.bat coverage
+```
+
+**Linux/Mac:**
+```bash
+# Executar todos os testes
+./run-tests.sh all
+
+# Apenas backend
+./run-tests.sh backend
+
+# Apenas frontend
+./run-tests.sh frontend
+
+# Com cobertura de código
+./run-tests.sh coverage
+```
+
+### Comandos Diretos
+
+**Backend:**
 ```bash
 cd server
-npm test
+npm test                    # Executar testes
+npm run test:watch          # Modo watch
+npm run test:coverage       # Com cobertura
 ```
 
-### Executar testes do cliente
+**Frontend:**
 ```bash
 cd client
-npm test
+npm test                    # Executar testes (modo interativo)
+npm test -- --watchAll=false # Executar uma vez
+npm test -- --coverage      # Com cobertura
 ```
 
-### Executar todos os testes
-```bash
-npm run test
-```
+### Cobertura de Testes
+
+Os testes cobrem:
+- ✅ **Backend Controllers**: authController, projectController, trackController
+- ✅ **Frontend Services**: authService
+- ✅ **React Components**: LoginForm, Toast, AudioPlayer
+- ✅ **Validações**: inputs, permissões, autenticação
+
+Relatórios de cobertura:
+- Backend: `server/coverage/index.html`
+- Frontend: `client/coverage/lcov-report/index.html`
 
 ## 📊 Scripts Disponíveis
 

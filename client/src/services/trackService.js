@@ -67,8 +67,10 @@ export const trackService = {
   },
 
   async getTrackAudio(id) {
-    const response = await api.get(`/tracks/${id}/audio`);
-    return response.data.audioUrl;
+    // Retornar URL de streaming em vez de base64 data URL (reduz uso de memória)
+    const token = localStorage.getItem('token');
+    const audioUrl = `${API_BASE_URL}/tracks/${id}/audio?token=${encodeURIComponent(token)}`;
+    return audioUrl;
   },
 
   async downloadTrackAudio(id) {

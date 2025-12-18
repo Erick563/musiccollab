@@ -35,7 +35,7 @@ server.headersTimeout = 66000; // 66 segundos (deve ser maior que keepAliveTimeo
 const socketCorsOrigin = process.env.SOCKET_CORS_ORIGIN;
 const io = new Server(server, {
   cors: {
-    origin: socketCorsOrigin ? socketCorsOrigin.split(',') : true, // Permitir todas as origens se não especificado
+    origin: true,
     methods: ["GET", "POST"],
     credentials: true
   },

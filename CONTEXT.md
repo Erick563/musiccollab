@@ -69,7 +69,6 @@ musiccollab/
 ?   ??? utils/             # Utilitários compartilhados
 ??? tests/                  # Testes
 ??? docs/                   # Documentação
-??? docker/                 # Configurações Docker
 ??? README.md               # Documentação principal
 ```
 
@@ -314,7 +313,6 @@ try {
 - **WebRTC** - Streaming de áudio (futuro)
 
 ### DevOps
-- **Docker** - Containerização
 - **GitHub Actions** - CI/CD
 - **AWS S3** - Armazenamento de arquivos de áudio
 - **Heroku/Railway** - Deploy

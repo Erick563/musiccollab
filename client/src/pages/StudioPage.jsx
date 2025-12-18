@@ -1917,9 +1917,7 @@ const StudioPage = () => {
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', zIndex: 10000 }}>
           {currentProjectId && (() => {
             const filtered = onlineUsers.filter(u => u.userId !== user?.id && u.mousePosition);
-            if (onlineUsers.length > 1) {
-              console.log('[StudioPage] Renderizando cursores - Total users:', onlineUsers.length, 'Filtered:', filtered.length, 'Users:', onlineUsers.map(u => ({ name: u.userName, hasMousePos: !!u.mousePosition })));
-            }
+
             return filtered.map(u => (
               <CollaborativeCursor
                 key={u.socketId}

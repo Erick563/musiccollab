@@ -72,7 +72,7 @@ const StudioPage = () => {
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
 
-  // Manter refs sincronizados para uso em callbacks
+
   useEffect(() => {
     tracksRef.current = tracks;
   }, [tracks]);
@@ -159,7 +159,7 @@ const StudioPage = () => {
 
   const autoSaveProjectState = useCallback(async (currentTracks, skipToast = false) => {
     const projectIdToUse = currentProjectId || projectId;
-    
+
     if (!projectIdToUse) {
       console.warn('[Auto-save] Nenhum projeto ativo para salvar');
       return;
@@ -194,7 +194,7 @@ const StudioPage = () => {
       };
 
       await projectService.updateProject(projectIdToUse, projectData);
-      
+
       if (!skipToast) {
         console.log('[Auto-save] Estado do projeto salvo com sucesso');
       }
@@ -256,7 +256,6 @@ const StudioPage = () => {
               deletedRegions: []
             };
 
-            // Adicionar track temporariamente ao estado local
             setTracks(prevTracks => {
               const updatedTracks = [...prevTracks, newTrack];
 
@@ -270,7 +269,6 @@ const StudioPage = () => {
               setSelectedTrack(newTrack);
             }
 
-            // AUTO-SAVE: Salvar imediatamente no banco de dados
             const projectIdToUse = currentProjectId || projectId;
 
             if (projectIdToUse) {
@@ -285,15 +283,10 @@ const StudioPage = () => {
                   color: newTrack.color
                 };
 
-
-                // Fazer upload da track para o servidor
                 const uploadedTrack = await trackService.createTrack(projectIdToUse, file, trackData);
 
-
-                // Atualizar duração
                 await trackService.updateTrack(uploadedTrack.id, { duration: Math.floor(trackDuration) });
 
-                // Atualizar estado local com o ID real do banco
                 let updatedTracks = [];
                 setTracks(prevTracks => {
                   updatedTracks = prevTracks.map(t =>
@@ -304,10 +297,8 @@ const StudioPage = () => {
                   return updatedTracks;
                 });
 
-                // Aguardar um pouco para o estado ser atualizado
                 await new Promise(resolve => setTimeout(resolve, 100));
 
-                // Salvar estado completo do projeto
                 const projectState = {
                   tracks: updatedTracks.map(track => ({
                     id: track.id,
@@ -337,7 +328,6 @@ const StudioPage = () => {
 
                 await projectService.updateProject(projectIdToUse, projectData);
 
-                // Notificar outros usuários sobre a nova track SALVA
                 const trackForSync = {
                   id: uploadedTrack.id,
                   trackId: uploadedTrack.id,
@@ -392,7 +382,7 @@ const StudioPage = () => {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
-  // Gerar cor única baseada no ID do usuário (consistente entre sessões)
+
   const getUserColor = (userId) => {
     const colors = [
       '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
@@ -401,7 +391,7 @@ const StudioPage = () => {
       '#D63031', '#00B894', '#00CEC9', '#0984E3'
     ];
 
-    // Usar hash simples do userId para escolher cor consistente
+
     let hash = 0;
     for (let i = 0; i < userId.length; i++) {
       hash = userId.charCodeAt(i) + ((hash << 5) - hash);
@@ -440,12 +430,12 @@ const StudioPage = () => {
 
     if (currentProjectId) {
       notifyTrackDeleted(trackId);
-      
+
       try {
         await trackService.deleteTrack(trackId);
-        
+
         await autoSaveProjectState(updatedTracks, true);
-        
+
         console.log(`[Auto-save] Track ${trackId} deletada do banco e estado salvo`);
       } catch (error) {
         console.error('[Auto-save] Erro ao deletar track:', error);
@@ -459,7 +449,7 @@ const StudioPage = () => {
   const autoSaveTimerRef = useRef(null);
 
   const handleTrackUpdate = async (trackId, updates) => {
-    // Bloquear modificações para VIEWER
+
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para modificar faixas. Sua permissão é apenas de visualização.', 'error');
       return;
@@ -507,7 +497,7 @@ const StudioPage = () => {
           notifyTrackUpdated(trackId, updates);
         }, 150);
       } else {
-        // Notificação imediata para outras mudanças
+
         notifyTrackUpdated(trackId, updates);
       }
     }
@@ -516,7 +506,7 @@ const StudioPage = () => {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
-      
+
       const delay = isPositionChange ? 500 : 300;
       autoSaveTimerRef.current = setTimeout(async () => {
         await autoSaveProjectState(updatedTracks, true);
@@ -555,13 +545,13 @@ const StudioPage = () => {
   };
 
   useEffect(() => {
-    // Reset flags quando projectId muda
+
     if (loadedProjectIdRef.current !== projectId) {
       toastShownRef.current = false;
       loadingCancelledRef.current = false;
     }
 
-    // Marca como não cancelado para esta execução
+
     loadingCancelledRef.current = false;
 
     const loadProject = async () => {
@@ -572,18 +562,18 @@ const StudioPage = () => {
         return;
       }
 
-      // Evita carregar o mesmo projeto múltiplas vezes
-      // Marca ANTES de começar para prevenir execuções simultâneas
+
+
       if (loadedProjectIdRef.current === projectId && toastShownRef.current) {
         return;
       }
 
-      // Marca imediatamente para prevenir execuções duplicadas
+
       if (loadedProjectIdRef.current === projectId) {
         return;
       }
 
-      // Marca o projeto como sendo carregado ANTES de começar
+
       loadedProjectIdRef.current = projectId;
 
       try {
@@ -629,7 +619,7 @@ const StudioPage = () => {
 
         const validTracks = restoredTracks.filter(t => t !== null);
 
-        // Aplicar estado salvo do projeto
+
         if (project.state) {
           const state = project.state;
 
@@ -720,12 +710,12 @@ const StudioPage = () => {
       return () => {
         leaveProject(currentProjectId);
 
-        // Liberar bloqueio se estiver editando
+
         if (editingTrackId) {
           releaseLock(editingTrackId);
         }
 
-        // Limpar timers pendentes
+
         if (notificationTimerRef.current) {
           clearTimeout(notificationTimerRef.current);
         }
@@ -736,15 +726,15 @@ const StudioPage = () => {
     }
   }, [currentProjectId, user, joinProject, leaveProject, editingTrackId, releaseLock]);
 
-  // Detectar quando o container está pronto
+
   useLayoutEffect(() => {
     if (studioContentRef.current && !isContainerReady) {
       setIsContainerReady(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   });
 
-  // Trackear movimento do mouse para cursor colaborativo
+
   useEffect(() => {
 
     if (!currentProjectId || !isConnected || !studioContentRef.current || !isContainerReady) {
@@ -759,7 +749,7 @@ const StudioPage = () => {
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
 
-      // Throttle: enviar no máximo a cada 50ms
+
       if (mouseThrottleRef.current) {
         clearTimeout(mouseThrottleRef.current);
       }
@@ -783,28 +773,28 @@ const StudioPage = () => {
   }, [currentProjectId, isConnected, isContainerReady, updateMousePosition]);
 
 
-  // Escutar eventos de sincronização de tracks
+
   useEffect(() => {
     if (!currentProjectId || !isConnected) {
       return;
     }
 
-    // Handler para quando uma track é adicionada por outro usuário
+
     const handleTrackAdded = async (data) => {
       const { track, userName } = data;
 
-      // Verificar se a track já existe (evitar duplicação)
+
       const trackExists = tracksRef.current.some(t => t.id === track.id);
       if (trackExists) {
         return;
       }
 
-      // Se a track não é temporária (foi salva), carregar do servidor
+
       if (!track.isTemporary && track.trackId) {
         try {
           showToast(`${userName} adicionou "${track.name}". Carregando...`, 'info');
 
-          // Buscar o áudio do servidor
+
           const audioUrl = await trackService.getTrackAudio(track.trackId);
 
           const trackToAdd = {
@@ -820,7 +810,7 @@ const StudioPage = () => {
           showToast(`Erro ao carregar "${track.name}"`, 'error');
         }
       } else {
-        // Track temporária (não deveria acontecer mais com auto-save)
+
         const trackToAdd = {
           ...track,
           url: null,
@@ -834,7 +824,7 @@ const StudioPage = () => {
       }
     };
 
-    // Handler para quando uma track é atualizada por outro usuário
+
     const handleTrackUpdated = (data) => {
       const { trackId, updates, userName } = data;
 
@@ -843,28 +833,28 @@ const StudioPage = () => {
           track.id === trackId ? { ...track, ...updates } : track
         );
 
-        // Recalcular duração se a posição ou duração da track mudou
+
         if ((updates.startTime !== undefined || updates.duration !== undefined) && updatedTracks.length > 0) {
           const maxDur = Math.max(...updatedTracks.map(t => (t.startTime || 0) + (t.duration || 0)));
           setDuration(maxDur);
         }
 
-        // Mostrar toast apenas para mudanças significativas
-        // Usar prevTracks para evitar problemas de closure
+
+
         if (updates.name) {
           showToast(`${userName} renomeou uma faixa`, 'info', 2000);
         } else if (updates.startTime !== undefined) {
           const track = prevTracks.find(t => t.id === trackId);
-          // if (track) {
-          //   showToast(`${userName} moveu "${track.name}"`, 'info', 1500);
-          // }
+
+
+
         } else if (updates.deletedRegions !== undefined) {
           const track = prevTracks.find(t => t.id === trackId);
           if (track) {
             showToast(`${userName} editou "${track.name}"`, 'info', 2000);
           }
         } else if (updates.volume !== undefined || updates.pan !== undefined) {
-          // Não mostrar toast para mudanças de volume/pan
+
         } else {
           showToast(`${userName} editou uma faixa`, 'info', 2000);
         }
@@ -873,23 +863,17 @@ const StudioPage = () => {
       });
     };
 
-    // Handler para quando uma track é deletada por outro usuário
     const handleTrackDeleted = (data) => {
       const { trackId, userName } = data;
 
       setTracks(prevTracks => {
         const track = prevTracks.find(t => t.id === trackId);
-        // if (track) {
-        //   showToast(`${userName} removeu a faixa "${track.name}"`, 'warning');
-        // }
         return prevTracks.filter(t => t.id !== trackId);
       });
 
-      // Se a track deletada era a selecionada, limpar seleção
       setSelectedTrack(prev => prev?.id === trackId ? null : prev);
     };
 
-    // Handler para quando o projeto é bloqueado globalmente
     const handleProjectLocked = (data) => {
       const { userName, operation } = data;
       setProjectLocked(true);
@@ -897,21 +881,21 @@ const StudioPage = () => {
       showToast(`⚠️ Projeto travado por ${userName} (${operation})`, 'warning', 3000);
     };
 
-    // Handler para quando o projeto é desbloqueado globalmente
+
     const handleProjectUnlocked = () => {
       setProjectLocked(false);
       setProjectLockedBy(null);
       showToast('✅ Projeto desbloqueado', 'success', 2000);
     };
 
-    // Registrar listeners
+
     on('track-added', handleTrackAdded);
     on('track-updated', handleTrackUpdated);
     on('track-deleted', handleTrackDeleted);
     on('project-locked', handleProjectLocked);
     on('project-unlocked', handleProjectUnlocked);
 
-    // Cleanup: remover listeners
+
     return () => {
       off('track-added', handleTrackAdded);
       off('track-updated', handleTrackUpdated);
@@ -1062,7 +1046,7 @@ const StudioPage = () => {
   };
 
   const handleSave = useCallback(async () => {
-    // Bloquear salvamento para VIEWER
+
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para salvar o projeto. Sua permissão é apenas de visualização.', 'error');
       return;
@@ -1267,7 +1251,7 @@ const StudioPage = () => {
   }, []);
 
   const handleCopyRegion = useCallback((trackId, region) => {
-    // Permitir cópia mesmo para VIEWER (não modifica nada)
+
     const track = tracks.find(t => t.id === trackId);
     if (!track || !region) return;
 
@@ -1295,7 +1279,7 @@ const StudioPage = () => {
   }, [tracks, showToast, mapTimelineToAudioTime]);
 
   const handleDeleteRegion = useCallback(async (trackId, region) => {
-    // Bloquear deleção de região para VIEWER
+
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para deletar regiões. Sua permissão é apenas de visualização.', 'error');
       return;
@@ -1312,7 +1296,7 @@ const StudioPage = () => {
     let projectLocked = false;
 
     try {
-      // 1. Solicitar lock global do projeto
+
       showToast('Travando projeto para operação...', 'info', 1500);
       await requestProjectLock('delete');
       projectLocked = true;
@@ -1333,7 +1317,7 @@ const StudioPage = () => {
 
       const newDuration = track.duration - regionDuration;
 
-      // 2. Atualizar estado local
+
       let updatedTracks = [];
       setTracks(prevTracks => {
         const updated = prevTracks.map(t =>
@@ -1355,10 +1339,10 @@ const StudioPage = () => {
         return updated;
       });
 
-      // Aguardar atualização do estado
+
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // 3. Realizar auto-save do projeto
+
       showToast('Realizando auto-save...', 'info');
       const projectState = {
         tracks: updatedTracks.map(track => ({
@@ -1389,7 +1373,7 @@ const StudioPage = () => {
 
       await projectService.updateProject(currentProjectId, projectData);
 
-      // 4. Notificar outros usuários sobre a atualização da track
+
       notifyTrackUpdated(trackId, {
         deletedRegions: updatedDeletedRegions,
         duration: newDuration
@@ -1401,7 +1385,7 @@ const StudioPage = () => {
       console.error('Erro ao deletar região:', error);
       showToast(`Erro ao deletar região: ${error.message}`, 'error');
     } finally {
-      // 5. Liberar lock global do projeto
+
       if (projectLocked) {
         releaseProjectLock();
         showToast('Projeto desbloqueado', 'info', 1500);
@@ -1410,7 +1394,7 @@ const StudioPage = () => {
   }, [tracks, showToast, mapTimelineToAudioTime, currentUserRole, currentProjectId, requestProjectLock, releaseProjectLock, masterVolume, zoom, currentTime, projectName, notifyTrackUpdated]);
 
   const handleCutRegion = useCallback(async (trackId, region) => {
-    // Bloquear corte de região para VIEWER
+
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para recortar regiões. Sua permissão é apenas de visualização.', 'error');
       return;
@@ -1443,7 +1427,7 @@ const StudioPage = () => {
       isCut: true
     });
 
-    // Chamar handleDeleteRegion que agora também trava e faz auto-save
+
     await handleDeleteRegion(trackId, region);
 
     const duration = (region.end - region.start).toFixed(1);
@@ -1451,7 +1435,7 @@ const StudioPage = () => {
   }, [tracks, showToast, handleDeleteRegion, mapTimelineToAudioTime, currentUserRole, currentProjectId]);
 
   const handlePaste = useCallback(async () => {
-    // Bloquear colar para VIEWER
+
     if (currentUserRole === 'VIEWER') {
       showToast('Você não tem permissão para colar regiões. Sua permissão é apenas de visualização.', 'error');
       return;
@@ -1470,7 +1454,7 @@ const StudioPage = () => {
     let projectLocked = false;
 
     try {
-      // 1. Solicitar lock global do projeto
+
       showToast('Travando projeto para operação...', 'info', 1500);
       await requestProjectLock('paste');
       projectLocked = true;
@@ -1487,7 +1471,7 @@ const StudioPage = () => {
       const originalTrackId = originalTrack?.trackId || originalTrack?.id || clipboard.trackId;
       const segmentDuration = clipboard.region.end - clipboard.region.start;
 
-      // 2. Criar track temporária no estado local
+
       const tempId = Date.now();
       const newTrack = {
         id: tempId,
@@ -1527,32 +1511,32 @@ const StudioPage = () => {
 
       const uploadedTrack = await trackService.createTrack(currentProjectId, audioFile, trackData);
 
-      // Atualizar duração
+
       await trackService.updateTrack(uploadedTrack.id, { duration: Math.floor(segmentDuration) });
 
       const audioUrl = await trackService.getTrackAudio(uploadedTrack.id);
 
-      // 5. Atualizar estado local com o ID real do banco e o novo URL
+
       let updatedTracks = [];
       setTracks(prevTracks => {
         updatedTracks = prevTracks.map(t =>
           t.id === tempId
-            ? { 
-                ...t, 
-                id: uploadedTrack.id, 
-                trackId: uploadedTrack.id,
-                url: audioUrl,           // Atualizar com o áudio processado
-                isSegment: false,
-                trimStart: null,
-                trimEnd: null,
-                deletedRegions: []
-              }
+            ? {
+              ...t,
+              id: uploadedTrack.id,
+              trackId: uploadedTrack.id,
+              url: audioUrl,
+              isSegment: false,
+              trimStart: null,
+              trimEnd: null,
+              deletedRegions: []
+            }
             : t
         );
         return updatedTracks;
       });
 
-      // Aguardar atualização do estado
+
       await new Promise(resolve => setTimeout(resolve, 100));
 
       const projectState = {
@@ -1584,7 +1568,7 @@ const StudioPage = () => {
 
       await projectService.updateProject(currentProjectId, projectData);
 
-      // 7. Notificar outros usuários sobre a nova track
+
       const trackForSync = {
         id: uploadedTrack.id,
         trackId: uploadedTrack.id,
@@ -1602,12 +1586,12 @@ const StudioPage = () => {
       notifyTrackAdded(trackForSync);
 
       const timeStr = `${Math.floor(currentTime / 60)}:${Math.floor(currentTime % 60).toString().padStart(2, '0')}`;
-      
+
     } catch (error) {
       console.error('Erro ao colar segmento:', error);
       showToast(`Erro ao colar segmento: ${error.message}`, 'error');
     } finally {
-      // 8. Liberar lock global do projeto
+
       if (projectLocked) {
         releaseProjectLock();
       }
@@ -1642,7 +1626,7 @@ const StudioPage = () => {
 
       showToast('Projeto excluído com sucesso!', 'success');
 
-      // Redirecionar para o dashboard após breve delay
+
       setTimeout(() => {
         navigate('/dashboard');
       }, 1500);
@@ -1765,11 +1749,11 @@ const StudioPage = () => {
             placeholder="Nome do Projeto"
             disabled={currentUserRole === 'VIEWER' || currentUserRole === 'COLLABORATOR'}
             title={
-              currentUserRole === 'VIEWER' 
-                ? 'Você não pode editar o nome do projeto (somente visualização)' 
+              currentUserRole === 'VIEWER'
+                ? 'Você não pode editar o nome do projeto (somente visualização)'
                 : currentUserRole === 'COLLABORATOR'
-                ? 'Apenas proprietários e administradores podem editar o nome do projeto'
-                : ''
+                  ? 'Apenas proprietários e administradores podem editar o nome do projeto'
+                  : ''
             }
           />
           {currentUserRole === 'VIEWER' && (
@@ -1842,8 +1826,8 @@ const StudioPage = () => {
           >
             {isSaving ? '⏳ Salvando...' : '💾 Salvar'}
           </button>
-          <button 
-            className="header-btn" 
+          <button
+            className="header-btn"
             onClick={handleExport}
             disabled={currentUserRole === 'VIEWER'}
             title={currentUserRole === 'VIEWER' ? 'Você não pode exportar (somente visualização)' : ''}

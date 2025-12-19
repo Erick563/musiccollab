@@ -22,7 +22,6 @@ export const CollaborationProvider = ({ children }) => {
   const currentProjectIdRef = useRef(null);
   const isConnectedRef = useRef(false);
 
-  // Manter refs sincronizados
   useEffect(() => {
     currentProjectIdRef.current = currentProjectId;
   }, [currentProjectId]);
@@ -31,14 +30,12 @@ export const CollaborationProvider = ({ children }) => {
     isConnectedRef.current = isConnected;
   }, [isConnected]);
 
-  // Conectar ao WebSocket quando o usuário estiver autenticado
   useEffect(() => {
     if (user) {
       const token = localStorage.getItem('token');
       if (token) {
         socketRef.current = collaborationService.connect(token);
 
-        // Eventos do socket
         collaborationService.on('connect', () => {
           setIsConnected(true);
         });
@@ -48,14 +45,12 @@ export const CollaborationProvider = ({ children }) => {
           setOnlineUsers([]);
         });
 
-        // Eventos de usuários
         collaborationService.on('online-users', (users) => {
           setOnlineUsers(users);
         });
 
         collaborationService.on('user-joined', (user) => {
           setOnlineUsers(prev => {
-            // Verificar se o usuário já existe (evitar duplicação)
             const exists = prev.some(u => u.socketId === user.socketId);
             if (exists) {
               return prev;
@@ -87,7 +82,6 @@ export const CollaborationProvider = ({ children }) => {
           });
         });
 
-        // Eventos de bloqueio de tracks
         collaborationService.on('locked-tracks', (tracks) => {
           setLockedTracks(tracks);
         });
@@ -95,7 +89,6 @@ export const CollaborationProvider = ({ children }) => {
         collaborationService.on('track-locked', ({ trackId, userId, userName }) => {
           setLockedTracks(prev => [...prev, { trackId, userId, userName }]);
 
-          // Atualizar status do usuário
           setOnlineUsers(prev => prev.map(u =>
             u.userId === userId
               ? { ...u, isEditing: true, editingTrackId: trackId }
@@ -106,7 +99,6 @@ export const CollaborationProvider = ({ children }) => {
         collaborationService.on('track-unlocked', ({ trackId }) => {
           setLockedTracks(prev => prev.filter(t => t.trackId !== trackId));
 
-          // Atualizar status dos usuários
           setOnlineUsers(prev => prev.map(u =>
             u.editingTrackId === trackId
               ? { ...u, isEditing: false, editingTrackId: undefined }
@@ -114,11 +106,7 @@ export const CollaborationProvider = ({ children }) => {
           ));
         });
 
-        // Eventos de sincronização de tracks (track-added, track-updated, track-deleted)
-        // são registrados diretamente pelos componentes que precisam reagir às mudanças
-        // (ex: StudioPage), então não precisamos registrá-los aqui
 
-        // Adicionar listeners para desconectar quando o navegador/aba for fechado
         const handleBeforeUnload = () => {
           if (currentProjectIdRef.current) {
             collaborationService.leaveProject(currentProjectIdRef.current);
@@ -146,17 +134,14 @@ export const CollaborationProvider = ({ children }) => {
     };
   }, [user]);
 
-  // Quando o socket conectar/reconectar e houver um projeto ativo, entrar nele
   useEffect(() => {
     if (isConnected && currentProjectId) {
       collaborationService.joinProject(currentProjectId);
     }
   }, [isConnected, currentProjectId]);
 
-  // Entrar em um projeto
   const joinProject = useCallback((projectId) => {
 
-    // Setar o currentProjectId imediatamente, mesmo se o socket não estiver conectado ainda
     if (currentProjectId && currentProjectId !== projectId) {
       if (isConnected) {
         collaborationService.leaveProject(currentProjectId);
@@ -165,7 +150,6 @@ export const CollaborationProvider = ({ children }) => {
 
     setCurrentProjectId(projectId);
 
-    // Se o socket estiver conectado, entrar no projeto imediatamente
     if (isConnected) {
       collaborationService.joinProject(projectId);
     } else {
@@ -173,7 +157,6 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, [isConnected, currentProjectId]);
 
-  // Sair de um projeto
   const leaveProject = useCallback((projectId) => {
     collaborationService.leaveProject(projectId);
     setCurrentProjectId(null);
@@ -181,21 +164,18 @@ export const CollaborationProvider = ({ children }) => {
     setLockedTracks([]);
   }, []);
 
-  // Atualizar posição do cursor (tempo de playback)
   const updateCursor = useCallback((cursorPosition) => {
     if (currentProjectId && isConnected) {
       collaborationService.updateCursorPosition(currentProjectId, cursorPosition);
     }
   }, [currentProjectId, isConnected]);
 
-  // Atualizar posição do mouse
   const updateMousePosition = useCallback((mousePosition) => {
     if (currentProjectId && isConnected) {
       collaborationService.updateMousePosition(currentProjectId, mousePosition);
     }
   }, [currentProjectId, isConnected]);
 
-  // Solicitar bloqueio de track
   const requestLock = useCallback(async (trackId) => {
     if (!currentProjectId) {
       throw new Error('Nenhum projeto ativo');
@@ -204,14 +184,12 @@ export const CollaborationProvider = ({ children }) => {
     return collaborationService.requestTrackLock(currentProjectId, trackId);
   }, [currentProjectId]);
 
-  // Liberar bloqueio de track
   const releaseLock = useCallback((trackId) => {
     if (currentProjectId) {
       collaborationService.releaseTrackLock(currentProjectId, trackId);
     }
   }, [currentProjectId]);
 
-  // Solicitar bloqueio global do projeto
   const requestProjectLock = useCallback(async (operation) => {
     if (!currentProjectId) {
       throw new Error('Nenhum projeto ativo');
@@ -220,32 +198,27 @@ export const CollaborationProvider = ({ children }) => {
     return collaborationService.requestProjectLock(currentProjectId, operation);
   }, [currentProjectId]);
 
-  // Liberar bloqueio global do projeto
   const releaseProjectLock = useCallback(() => {
     if (currentProjectId) {
       collaborationService.releaseProjectLock(currentProjectId);
     }
   }, [currentProjectId]);
 
-  // Verificar se uma track está bloqueada
   const isTrackLocked = useCallback((trackId) => {
     return lockedTracks.some(t => t.trackId === trackId);
   }, [lockedTracks]);
 
-  // Obter quem está bloqueando uma track
   const getTrackLocker = useCallback((trackId) => {
     const lock = lockedTracks.find(t => t.trackId === trackId);
     return lock || null;
   }, [lockedTracks]);
 
-  // Enviar atualização do projeto
   const sendUpdate = useCallback((changes) => {
     if (currentProjectId && isConnected) {
       collaborationService.sendProjectUpdate(currentProjectId, changes);
     }
   }, [currentProjectId, isConnected]);
 
-  // Notificar adição de track
   const notifyTrackAdded = useCallback((track) => {
     const projId = currentProjectIdRef.current;
     const connected = isConnectedRef.current;
@@ -256,7 +229,6 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, []);
 
-  // Notificar atualização de track
   const notifyTrackUpdated = useCallback((trackId, updates) => {
     const projId = currentProjectIdRef.current;
     const connected = isConnectedRef.current;
@@ -267,7 +239,6 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, []);
 
-  // Notificar deleção de track
   const notifyTrackDeleted = useCallback((trackId) => {
     const projId = currentProjectIdRef.current;
     const connected = isConnectedRef.current;
@@ -278,7 +249,6 @@ export const CollaborationProvider = ({ children }) => {
     }
   }, []);
 
-  // Gerenciar colaboradores (API REST)
   const getCollaborators = useCallback(async (projectId) => {
     return collaborationService.getCollaborators(projectId);
   }, []);
@@ -295,7 +265,6 @@ export const CollaborationProvider = ({ children }) => {
     return collaborationService.removeCollaborator(projectId, collaboratorId);
   }, []);
 
-  // Registrar listener de eventos customizados
   const on = useCallback((event, handler) => {
     collaborationService.on(event, handler);
   }, []);

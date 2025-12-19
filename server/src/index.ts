@@ -26,39 +26,33 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
-// Configurar timeouts do servidor HTTP para evitar conexões penduradas
-server.timeout = 120000; // 120 segundos
-server.keepAliveTimeout = 65000; // 65 segundos (maior que o padrão de load balancers)
-server.headersTimeout = 66000; // 66 segundos (deve ser maior que keepAliveTimeout)
+server.timeout = 120000;
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
 
-// Configurar Socket.IO para aceitar conexões da rede local
 const io = new Server(server, {
   cors: {
     origin: 'http://localhost:3000',
     methods: ["GET", "POST"],
     credentials: true
   },
-  // Configurações para detectar desconexões rapidamente
-  pingTimeout: 10000, // 10 segundos - tempo para aguardar resposta do ping antes de considerar desconectado
-  pingInterval: 5000, // 5 segundos - intervalo entre pings para detectar desconexão mais rápido
-  connectTimeout: 10000, // 10 segundos - timeout para conexão inicial
-  maxHttpBufferSize: 1e8, // 100 MB - limite de dados por mensagem
-  // Configurações de transporte
+  pingTimeout: 10000,
+  pingInterval: 5000,
+  connectTimeout: 10000,
+  maxHttpBufferSize: 1e8,
   transports: ['websocket', 'polling'],
   allowUpgrades: true,
-  // Configurações adicionais de performance
   perMessageDeflate: {
-    threshold: 1024 // Comprimir mensagens maiores que 1KB
+    threshold: 1024
   }
 });
 
 const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || '0.0.0.0'; // Escuta em todas as interfaces de rede
+const HOST = process.env.HOST || '0.0.0.0';
 
-// Configurar Helmet - em produção, permitir recursos estáticos do React
 const isProduction = process.env.NODE_ENV === 'production';
 app.use(helmet({
-  contentSecurityPolicy: isProduction ? false : undefined, // Desabilitar CSP em produção para permitir recursos do React
+  contentSecurityPolicy: isProduction ? false : undefined,
 }));
 app.use(compression());
 
@@ -82,34 +76,26 @@ app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tracks', trackRoutes);
 
-// Servir arquivos estáticos do React em produção
 if (isProduction) {
   const clientBuildPath = path.join(__dirname, '../../client/build');
   app.use(express.static(clientBuildPath));
   
-  // Para todas as rotas que não são API, servir o index.html do React (SPA)
-  // Rotas da API não encontradas serão tratadas pelo middleware notFound abaixo
   app.get('*', (req, res, next) => {
-    // Se for rota da API, passar para o próximo middleware (notFound)
     if (req.path.startsWith('/api')) {
       return next();
     }
-    // Caso contrário, servir o index.html do React
     res.sendFile(path.join(clientBuildPath, 'index.html'));
   });
 }
 
-// Middleware para rotas não encontradas (principalmente rotas da API)
 app.use(notFound);
 app.use(errorHandler);
 
-// Configurar handlers de colaboração WebSocket
 setupCollaborationHandlers(io);
 
 server.listen(PORT as number, HOST as string, async () => {
   await connectDatabase();
   
-  // Obter IP da máquina na rede local
   const networkInterfaces = os.networkInterfaces();
   const localIPs: string[] = [];
   
@@ -117,7 +103,6 @@ server.listen(PORT as number, HOST as string, async () => {
     const addresses = networkInterfaces[interfaceName];
     if (addresses) {
       addresses.forEach((address) => {
-        // Compatível com Node.js antigo (family === 'IPv4') e novo (family === 4)
         const family = address.family;
         const isIPv4 = family === 'IPv4' || (typeof family === 'number' && family === 4);
         if (isIPv4 && !address.internal) {

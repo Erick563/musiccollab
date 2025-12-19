@@ -10,7 +10,6 @@ import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-// Health check endpoint - não requer autenticação
 router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',

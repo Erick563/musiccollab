@@ -55,7 +55,6 @@ export const createTrack = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verificar se o usuário tem permissão para adicionar tracks (não pode ser VIEWER)
     const project = await prisma.project.findFirst({
       where: {
         id: projectId,

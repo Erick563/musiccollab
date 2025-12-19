@@ -146,7 +146,6 @@ export const getProject = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Determinar a role do usuário atual no projeto
     let currentUserRole = 'VIEWER';
     if (project.ownerId === req.user!.id) {
       currentUserRole = 'OWNER';
@@ -208,7 +207,6 @@ export const createProject = async (req: AuthRequest, res: Response) => {
         status: 'DRAFT',
         state: state || null,
         ownerId: req.user.id,
-        // Adicionar o criador automaticamente como colaborador OWNER
         collaborators: {
           create: {
             userId: req.user.id,
@@ -274,7 +272,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { title, status, state } = req.body;
 
-    // Buscar projeto e verificar permissões
     const existingProject = await prisma.project.findFirst({
       where: {
         id,
@@ -308,7 +305,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Determinar role do usuário
     let userRole = 'VIEWER';
     if (existingProject.ownerId === req.user.id) {
       userRole = 'OWNER';
@@ -329,7 +325,6 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       if (status !== undefined) updateData.status = status;
     }
     
-    // Colaboradores podem editar o estado (tracks, volumes, etc.)
     if (state !== undefined) updateData.state = state;
 
     const updatedProject = await prisma.project.update({
@@ -533,7 +528,6 @@ export const addCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Buscar o usuário a ser adicionado
     const userToAdd = await prisma.user.findUnique({
       where: {
         email: userEmail
@@ -552,7 +546,6 @@ export const addCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verificar se o usuário já é colaborador
     const existingCollaborator = await prisma.projectCollaborator.findUnique({
       where: {
         userId_projectId: {
@@ -569,7 +562,6 @@ export const addCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verificar se o usuário é o dono
     if (project.ownerId === userToAdd.id) {
       return res.status(400).json({
         success: false,
@@ -577,7 +569,6 @@ export const addCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Adicionar colaborador
     const collaborator = await prisma.projectCollaborator.create({
       data: {
         userId: userToAdd.id,
@@ -659,7 +650,6 @@ export const updateCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verificar se o colaborador a ser atualizado é o proprietário
     const collaboratorToUpdate = await prisma.projectCollaborator.findUnique({
       where: {
         id: collaboratorId
@@ -673,7 +663,6 @@ export const updateCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Não permitir alterar a role do proprietário
     if (collaboratorToUpdate.userId === project.ownerId) {
       return res.status(403).json({
         success: false,
@@ -681,7 +670,6 @@ export const updateCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Atualizar colaborador
     const collaborator = await prisma.projectCollaborator.update({
       where: {
         id: collaboratorId
@@ -756,7 +744,6 @@ export const removeCollaborator = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // Verificar se o colaborador a ser removido é o proprietário
     const collaboratorToRemove = await prisma.projectCollaborator.findUnique({
       where: {
         id: collaboratorId

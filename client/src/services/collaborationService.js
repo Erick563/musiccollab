@@ -11,7 +11,6 @@ class CollaborationService {
     this.eventHandlers = new Map();
   }
 
-  // Conectar ao WebSocket
   connect(token) {
     
     if (this.socket && this.socket.connected) {
@@ -41,7 +40,6 @@ class CollaborationService {
     return this.socket;
   }
 
-  // Desconectar do WebSocket
   disconnect() {
     if (this.socket) {
       if (this.currentProjectId) {
@@ -54,7 +52,6 @@ class CollaborationService {
     }
   }
 
-  // Entrar em um projeto
   joinProject(projectId) {
     if (!this.socket || !this.socket.connected) {
       console.error('Socket não conectado');
@@ -65,7 +62,6 @@ class CollaborationService {
     this.socket.emit('join-project', projectId);
   }
 
-  // Sair de um projeto
   leaveProject(projectId) {
     if (!this.socket || !this.socket.connected) {
       return;
@@ -75,7 +71,6 @@ class CollaborationService {
     this.currentProjectId = null;
   }
 
-  // Atualizar posição do cursor (tempo de playback)
   updateCursorPosition(projectId, cursorPosition) {
     if (!this.socket || !this.socket.connected) {
       return;
@@ -84,7 +79,6 @@ class CollaborationService {
     this.socket.emit('cursor-move', { projectId, cursorPosition });
   }
 
-  // Atualizar posição do mouse
   updateMousePosition(projectId, mousePosition) {
     
     if (!this.socket || !this.socket.connected) {
@@ -95,7 +89,6 @@ class CollaborationService {
     this.socket.emit('mouse-move', { projectId, mousePosition });
   }
 
-  // Solicitar bloqueio para editar uma track
   requestTrackLock(projectId, trackId) {
     if (!this.socket || !this.socket.connected) {
       return Promise.reject(new Error('Socket não conectado'));
@@ -104,12 +97,10 @@ class CollaborationService {
     return new Promise((resolve, reject) => {
       this.socket.emit('request-track-lock', { projectId, trackId });
 
-      // Timeout de 5 segundos
       const timeout = setTimeout(() => {
         reject(new Error('Timeout ao solicitar bloqueio'));
       }, 5000);
 
-      // Aguardar resposta
       this.socket.once('track-lock-granted', (data) => {
         clearTimeout(timeout);
         if (data.trackId === trackId) {
@@ -126,7 +117,6 @@ class CollaborationService {
     });
   }
 
-  // Liberar bloqueio de uma track
   releaseTrackLock(projectId, trackId) {
     if (!this.socket || !this.socket.connected) {
       return;
@@ -135,7 +125,6 @@ class CollaborationService {
     this.socket.emit('release-track-lock', { projectId, trackId });
   }
 
-  // Solicitar bloqueio global do projeto (para operações críticas)
   requestProjectLock(projectId, operation) {
     if (!this.socket || !this.socket.connected) {
       return Promise.reject(new Error('Socket não conectado'));
@@ -144,12 +133,10 @@ class CollaborationService {
     return new Promise((resolve, reject) => {
       this.socket.emit('request-project-lock', { projectId, operation });
 
-      // Timeout de 10 segundos
       const timeout = setTimeout(() => {
         reject(new Error('Timeout ao solicitar bloqueio do projeto'));
       }, 10000);
 
-      // Aguardar resposta
       this.socket.once('project-lock-granted', (data) => {
         clearTimeout(timeout);
         if (data.projectId === projectId) {
@@ -168,7 +155,6 @@ class CollaborationService {
     });
   }
 
-  // Liberar bloqueio global do projeto
   releaseProjectLock(projectId) {
     if (!this.socket || !this.socket.connected) {
       return;
@@ -177,7 +163,6 @@ class CollaborationService {
     this.socket.emit('release-project-lock', { projectId });
   }
 
-  // Enviar atualização do projeto
   sendProjectUpdate(projectId, changes) {
     if (!this.socket || !this.socket.connected) {
       return;
@@ -186,7 +171,6 @@ class CollaborationService {
     this.socket.emit('project-update', { projectId, changes });
   }
 
-  // Notificar adição de track
   notifyTrackAdded(projectId, track) {
     if (!this.socket || !this.socket.connected) {
       console.warn('Socket não conectado ao notificar track adicionada');
@@ -196,7 +180,6 @@ class CollaborationService {
     this.socket.emit('track-added', { projectId, track });
   }
 
-  // Notificar atualização de track
   notifyTrackUpdated(projectId, trackId, updates) {
     if (!this.socket || !this.socket.connected) {
       console.warn('Socket não conectado ao notificar track atualizada');
@@ -206,7 +189,6 @@ class CollaborationService {
     this.socket.emit('track-updated', { projectId, trackId, updates });
   }
 
-  // Notificar deleção de track
   notifyTrackDeleted(projectId, trackId) {
     if (!this.socket || !this.socket.connected) {
       console.warn('Socket não conectado ao notificar track deletada');
@@ -216,43 +198,36 @@ class CollaborationService {
     this.socket.emit('track-deleted', { projectId, trackId });
   }
 
-  // Registrar evento
   on(event, handler) {
     if (!this.socket) {
       console.warn('⚠️ Socket não inicializado ao tentar registrar evento:', event);
       return;
     }
     
-    // Criar um wrapper que loga quando o evento é recebido
     const wrappedHandler = (data) => {
       handler(data);
     };
     
     this.socket.on(event, wrappedHandler);
     
-    // Armazenar o handler original para possível remoção posterior
     if (!this.eventHandlers.has(event)) {
       this.eventHandlers.set(event, []);
     }
     this.eventHandlers.get(event).push({ original: handler, wrapped: wrappedHandler });
   }
 
-  // Remover evento
   off(event, handler) {
     if (!this.socket) {
       return;
     }
 
-    // Remover do registro e do socket
     if (this.eventHandlers.has(event)) {
       const handlers = this.eventHandlers.get(event);
       const handlerObj = handlers.find(h => h.original === handler);
       
       if (handlerObj) {
-        // Remover o handler wrapped do socket
         this.socket.off(event, handlerObj.wrapped);
         
-        // Remover do registro
         const index = handlers.indexOf(handlerObj);
         if (index > -1) {
           handlers.splice(index, 1);
@@ -261,7 +236,6 @@ class CollaborationService {
     }
   }
 
-  // Limpar todos os eventos
   removeAllListeners() {
     if (!this.socket) {
       return;
@@ -276,9 +250,6 @@ class CollaborationService {
     this.eventHandlers.clear();
   }
 
-  // ===== API REST para gerenciar colaboradores =====
-
-  // Criar instância axios com autenticação
   getAxiosInstance() {
     const token = localStorage.getItem('token');
     return axios.create({
@@ -290,14 +261,12 @@ class CollaborationService {
     });
   }
 
-  // Listar colaboradores de um projeto
   async getCollaborators(projectId) {
     const api = this.getAxiosInstance();
     const response = await api.get(`/projects/${projectId}/collaborators`);
     return response.data;
   }
 
-  // Adicionar colaborador
   async addCollaborator(projectId, userEmail, role = 'COLLABORATOR') {
     const api = this.getAxiosInstance();
     const response = await api.post(`/projects/${projectId}/collaborators`, {
@@ -307,7 +276,6 @@ class CollaborationService {
     return response.data;
   }
 
-  // Atualizar colaborador
   async updateCollaborator(projectId, collaboratorId, role) {
     const api = this.getAxiosInstance();
     const response = await api.put(`/projects/${projectId}/collaborators/${collaboratorId}`, {
@@ -316,7 +284,6 @@ class CollaborationService {
     return response.data;
   }
 
-  // Remover colaborador
   async removeCollaborator(projectId, collaboratorId) {
     const api = this.getAxiosInstance();
     const response = await api.delete(`/projects/${projectId}/collaborators/${collaboratorId}`);
@@ -324,6 +291,4 @@ class CollaborationService {
   }
 }
 
-// Singleton
 export const collaborationService = new CollaborationService();
-

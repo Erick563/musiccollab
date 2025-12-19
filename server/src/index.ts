@@ -32,10 +32,9 @@ server.keepAliveTimeout = 65000; // 65 segundos (maior que o padrão de load bal
 server.headersTimeout = 66000; // 66 segundos (deve ser maior que keepAliveTimeout)
 
 // Configurar Socket.IO para aceitar conexões da rede local
-const socketCorsOrigin = process.env.SOCKET_CORS_ORIGIN;
 const io = new Server(server, {
   cors: {
-    origin: true,
+    origin: 'http://localhost:3000',
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -63,22 +62,18 @@ app.use(helmet({
 }));
 app.use(compression());
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Muitas tentativas de acesso, tente novamente em 15 minutos.'
-});
-app.use('/api/', limiter);
-
-
 app.use(cors({
-  origin: true,
+  origin: 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.options('*', cors({
+  origin: 'http://localhost:3000',
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));

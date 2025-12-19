@@ -855,9 +855,9 @@ const StudioPage = () => {
           showToast(`${userName} renomeou uma faixa`, 'info', 2000);
         } else if (updates.startTime !== undefined) {
           const track = prevTracks.find(t => t.id === trackId);
-          if (track) {
-            showToast(`${userName} moveu "${track.name}"`, 'info', 1500);
-          }
+          // if (track) {
+          //   showToast(`${userName} moveu "${track.name}"`, 'info', 1500);
+          // }
         } else if (updates.deletedRegions !== undefined) {
           const track = prevTracks.find(t => t.id === trackId);
           if (track) {
@@ -879,9 +879,9 @@ const StudioPage = () => {
 
       setTracks(prevTracks => {
         const track = prevTracks.find(t => t.id === trackId);
-        if (track) {
-          showToast(`${userName} removeu a faixa "${track.name}"`, 'warning');
-        }
+        // if (track) {
+        //   showToast(`${userName} removeu a faixa "${track.name}"`, 'warning');
+        // }
         return prevTracks.filter(t => t.id !== trackId);
       });
 

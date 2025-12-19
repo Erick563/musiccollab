@@ -15,8 +15,8 @@
 
 const http = require('http');
 
-const PORT = process.env.PORT || 3001;
-const HOST = process.env.HOST || 'localhost';
+const PORT = 3001;
+const HOST = 'localhost';
 
 function checkHealth() {
   const startTime = Date.now();

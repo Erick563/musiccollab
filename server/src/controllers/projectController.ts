@@ -316,12 +316,10 @@ export const updateProject = async (req: AuthRequest, res: Response) => {
       userRole = existingProject.collaborators[0].role;
     }
 
-    // Validar permissões específicas
     const updateData: any = {};
     
-    // Apenas OWNER e ADMIN podem editar título e status
     if (title !== undefined || status !== undefined) {
-      if (userRole !== 'OWNER' && userRole !== 'ADMIN') {
+      if (userRole === 'VIEWER') {
         return res.status(403).json({
           success: false,
           message: 'Apenas proprietários e administradores podem editar informações do projeto (título e status).'

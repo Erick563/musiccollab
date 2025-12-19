@@ -70,48 +70,15 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Configurar CORS para aceitar requisições da rede local
-const corsOptions = {
-  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    // Permitir requisições sem origin (mobile apps, Postman, etc)
-    if (!origin) {
-      console.log('[CORS] Requisição sem origin - PERMITIDA');
-      return callback(null, true);
-    }
-    
-    // Permitir localhost e IPs da rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-    const allowedOrigins = [
-      /^http:\/\/localhost:\d+$/,
-      /^http:\/\/127\.0\.0\.1:\d+$/,
-      /^http:\/\/192\.168\.\d+\.\d+:\d+$/,
-      /^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
-      /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+$/
-    ];
-    
-    // Se SOCKET_CORS_ORIGIN estiver definido, também permitir
-    if (process.env.SOCKET_CORS_ORIGIN) {
-      const origins = process.env.SOCKET_CORS_ORIGIN.split(',');
-      origins.forEach(o => {
-        allowedOrigins.push(new RegExp('^' + o.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
-      });
-    }
-    
-    const isAllowed = allowedOrigins.some(pattern => pattern.test(origin));
-    
-    if (isAllowed) {
-      console.log('[CORS] Origin permitida:', origin);
-      callback(null, true); // Allow the request
-    } else {
-      console.log('[CORS] Origin BLOQUEADA:', origin);
-      callback(null, false); // Explicitly deny
-    }
-  },
+
+app.use(cors({
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
-
-app.use(cors(corsOptions));
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));

@@ -49,6 +49,8 @@ class CollaborationService {
       }
       this.socket.disconnect();
       this.socket = null;
+      this.currentProjectId = null;
+      
     }
   }
 

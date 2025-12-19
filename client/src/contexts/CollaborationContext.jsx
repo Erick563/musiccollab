@@ -117,6 +117,24 @@ export const CollaborationProvider = ({ children }) => {
         // Eventos de sincronização de tracks (track-added, track-updated, track-deleted)
         // são registrados diretamente pelos componentes que precisam reagir às mudanças
         // (ex: StudioPage), então não precisamos registrá-los aqui
+
+        // Adicionar listeners para desconectar quando o navegador/aba for fechado
+        const handleBeforeUnload = () => {
+          if (currentProjectIdRef.current) {
+            collaborationService.leaveProject(currentProjectIdRef.current);
+          }
+          collaborationService.disconnect();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+          window.removeEventListener('beforeunload', handleBeforeUnload);
+          if (socketRef.current) {
+            collaborationService.removeAllListeners();
+            collaborationService.disconnect();
+          }
+        };
       }
     }
 

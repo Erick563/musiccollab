@@ -39,10 +39,10 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true
   },
-  // Configurações para evitar conexões penduradas e timeouts
-  pingTimeout: 60000, // 60 segundos - tempo para aguardar resposta do ping
-  pingInterval: 25000, // 25 segundos - intervalo entre pings
-  connectTimeout: 45000, // 45 segundos - timeout para conexão inicial
+  // Configurações para detectar desconexões rapidamente
+  pingTimeout: 10000, // 10 segundos - tempo para aguardar resposta do ping antes de considerar desconectado
+  pingInterval: 5000, // 5 segundos - intervalo entre pings para detectar desconexão mais rápido
+  connectTimeout: 10000, // 10 segundos - timeout para conexão inicial
   maxHttpBufferSize: 1e8, // 100 MB - limite de dados por mensagem
   // Configurações de transporte
   transports: ['websocket', 'polling'],
